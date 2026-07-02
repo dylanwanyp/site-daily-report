@@ -1,4 +1,4 @@
-# 外勤工程地盘日报系统 — 部署说明
+# 外勤工程地盘日报系统 — 部署说明（GitHub Pages）
 
 ## 系统架构
 
@@ -6,7 +6,7 @@
 browser (employee.html / admin.html)
   -> HTTPS fetch -> Google Apps Script Web App
     -> Google Sheet (5 tabs)
-Netlify 免费 plan: static hosting for HTML files
+GitHub Pages (免费): static hosting for HTML files
 ```
 
 ---
@@ -47,24 +47,25 @@ Netlify 免费 plan: static hosting for HTML files
 
 ## Step 3: 设定 Frontend
 
-在两个 HTML 档案中，将 `REPLACE_WITH_YOUR_GAS_WEB_APP_URL` 替换成你的 GAS 网址：
+本项目的 HTML 已内置正确的 GAS 网址，无需修改。
+本项目使用的 GAS 网址：
 
-- employee.html 的 GAS_URL
-- admin.html 的 GAS_URL
-
-```javascript
-var GAS_URL = 'https://script.google.com/macros/s/你的ID/exec';
 ```
+https://script.google.com/macros/s/AKfycbw9wWpDVdY0GvvFbmPW3m8Zh2L7wUT0u47WMxYgBDg16Z2_5W2zPjft9tH7spNx7aERjQ/exec
+```
+
+若需更换 GAS 网址，请修改 employee.html 和 admin.html 最上方的 `GAS_URL` 变量。
 
 ---
 
-## Step 4: 部署到 Netlify
+## Step 4: 部署到 GitHub Pages
 
-1. 前往 netlify.com 并登入
-2. 拖放 employee.html 和 admin.html 到部署区域
-3. Netlify 会自动产生网址
-4. 员工页面：https://XXXX.netlify.app/employee.html
-5. 管理后台：https://XXXX.netlify.app/admin.html
+1. 前往 https://github.com/dylanwanyp/site-daily-report
+2. 在 Repo Settings → Pages → 将 Source 设为「Deploy from branch」→ master → / (root)
+3. GitHub 会自动部署，约 1-2 分钟生效
+4. 员工页面：https://dylanwanyp.github.io/site-daily-report/employee.html
+5. 管理后台：https://dylanwanyp.github.io/site-daily-report/admin.html
+6. 每次 git push 到 master 分支，GitHub 会自动重新部署（无使用次数限制）
 
 ---
 
@@ -94,7 +95,7 @@ var GAS_URL = 'https://script.google.com/macros/s/你的ID/exec';
 ## 常见问题
 
 Q: 需要 HTTPS 吗？
-A: Netlify 自动提供 HTTPS，GAS 也是 HTTPS，全程加密。
+A: GitHub Pages 自动提供 HTTPS，GAS 也是 HTTPS，全程加密。
 
 Q: 可以多人同时填写吗？
 A: 可以，极少情况同时提交可能有 race condition，一般用量可接受。
@@ -102,8 +103,8 @@ A: 可以，极少情况同时提交可能有 race condition，一般用量可�
 Q: 手机字体够大吗？
 A: 员工页面已针对手机优化：字体 18px，input 22px，按钮 48px 高。
 
-Q: 可以不用 Netlify 吗？
-A: 可以。任何 static hosting 都得（GitHub Pages, Cloudflare Pages, Vercel...）。
+Q: 可以不用 GitHub Pages 吗？
+A: 可以。任何 static hosting 都得（Netlify, Cloudflare Pages, Vercel...）。但建议用 GitHub Pages，因为免费无限制。
 
 ---
 
