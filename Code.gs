@@ -35,7 +35,7 @@ function routeAction(action, e, isPost) {
     case 'getRecordsForReport':
       var auth = checkAdmin(e, isPost);
       if (!auth.ok) return json(auth);
-      return json(getReport(e));
+      return json(getReport(e, isPost));
     case 'adminUpdateSite': case 'adminDeleteSite':
     case 'adminAddEmployee': case 'adminDeleteEmployee':
     case 'adminAddSubsidiary': case 'adminDeleteSubsidiary':
@@ -48,10 +48,14 @@ function routeAction(action, e, isPost) {
 function checkAdmin(e, isPost) {
   var pw = '';
   if (isPost && e.postData) {
-    var body = JSON.parse(e.postData.contents || '{}');
-    pw = body.password || '';
+    try {
+      var body = JSON.parse(e.postData.contents || '{}');
+      pw = body.password || '';
+    } catch (exc) {
+      pw = (e && e.parameter && e.parameter.password) || '';
+    }
   } else {
-    pw = e.parameter.password || '';
+    pw = (e && e.parameter && e.parameter.password) || '';
   }
   var stored = getConfig('admin_password');
   return stored === pw ? {ok: true} : {ok: false, error: 'Invalid password'};
@@ -60,10 +64,14 @@ function checkAdmin(e, isPost) {
 function verifyPw(e, isPost) {
   var pw = '';
   if (isPost && e.postData) {
-    var body = JSON.parse(e.postData.contents || '{}');
-    pw = body.password || '';
+    try {
+      var body = JSON.parse(e.postData.contents || '{}');
+      pw = body.password || '';
+    } catch (exc) {
+      pw = (e && e.parameter && e.parameter.password) || '';
+    }
   } else {
-    pw = e.parameter.password || '';
+    pw = (e && e.parameter && e.parameter.password) || '';
   }
   var stored = getConfig('admin_password');
   return {valid: stored === pw};
@@ -71,18 +79,7 @@ function verifyPw(e, isPost) {
 
 function adminAction(action, e, isPost) {
   // Support both GET query params and POST body
-  var body = {};
-  if (e && e.parameter) {
-    for (var key in e.parameter) {
-      if (key !== 'action') body[key] = e.parameter[key];
-    }
-  }
-  if (isPost && e.postData && e.postData.contents) {
-    try {
-      var p = JSON.parse(e.postData.contents);
-      for (var k in p) body[k] = p[k];
-    } catch (e) {}
-  }
+  var body = parseParams(e, isPost);
   var auth = checkAdmin(e, isPost);
   if (!auth.ok) return auth;
   switch (action) {
@@ -170,9 +167,10 @@ function handleSubmit(records) {
 }
 
 // ── Report ──
-function getReport(e) {
-  var emp = (e.parameter.employee || '').trim();
-  var month = e.parameter.month || '';
+function getReport(e, isPost) {
+  var p = parseParams(e, isPost);
+  var emp = (p.employee || '').trim();
+  var month = p.month || '';
   if (!emp) return {records: [], error: 'Employee required'};
   if (!month) return {records: [], error: 'Month required'};
 
@@ -210,6 +208,27 @@ function getReport(e) {
       out.push({date: rows[j][0], employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
   }
   return {records: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd)};
+}
+
+// ── Uniform param parser (GET query params + POST body) ──
+function parseParams(e, isPost) {
+  var body = {};
+  if (e && e.parameter) {
+    for (var key in e.parameter) {
+      if (key !== 'action') body[key] = e.parameter[key];
+    }
+  }
+  if (isPost && e.postData && e.postData.contents) {
+    try {
+      var p = JSON.parse(e.postData.contents);
+      for (var k in p) {
+        if (k !== 'action') body[k] = p[k];
+      }
+    } catch (exc) {
+      // POST body parse failed, params already from e.parameter
+    }
+  }
+  return body;
 }
 
 // ── Site CRUD ──
