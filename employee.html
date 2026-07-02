@@ -80,6 +80,11 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
   body{padding:8px 8px 100px}
 }
 @media print{body{background:#fff;padding:0}.no-print{display:none!important}}
+.date-block{border:2px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;background:#fafafa}
+.date-block-header{font-size:var(--fs-lg);font-weight:600;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.date-block .site-row{margin-bottom:6px}
+.date-block .add-btn{font-size:var(--fs-base);padding:8px 14px;margin-top:4px;margin-bottom:8px}
+.date-block .total-hours{font-size:var(--fs-base);font-weight:600;color:var(--primary)}
 </style>
 </head>
 <body>
@@ -121,6 +126,7 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
 <div class="card">
   <label>&#127963; 工作地盤</label>
   <div id="sitesContainer"></div>
+  <div id="rangeSitesContainer" class="hidden"></div>
   <button class="add-btn no-print" onclick="addSiteRow()" id="addSiteBtn">+ 加入地盤</button>
   <div id="totalHoursDisplay" class="total-hours hidden">總工時：8 小時</div>
 </div>
@@ -168,6 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
   loadData();
   setMinMaxDates();
   addSiteRow(); // start with one site row
+  document.getElementById('rangeSitesContainer').style.display = 'none';
 });
 
 function setMinMaxDates() {
@@ -200,6 +207,10 @@ function populateEmployees() {
     opt.textContent = e.name;
     sel.appendChild(opt);
   });
+  var other = document.createElement('option');
+  other.value = '__other__';
+  other.textContent = '其他 (自行輸入)';
+  sel.appendChild(other);
 }
 
 function showLoading(show) {
@@ -221,15 +232,30 @@ function setDateMode(mode) {
   document.getElementById('rangeModeBtn').classList.toggle('active', mode === 'range');
   document.getElementById('singleDateWrap').classList.toggle('hidden', mode !== 'single');
   document.getElementById('rangeDateWrap').classList.toggle('hidden', mode !== 'range');
+  document.getElementById('sitesContainer').style.display = (mode === 'single') ? '' : 'none';
+  document.getElementById('rangeSitesContainer').style.display = (mode === 'range') ? '' : 'none';
+  document.getElementById('addSiteBtn').style.display = (mode === 'single') ? '' : 'none';
+  if (mode === 'range') {
+    renderRangeDateBlocks();
+  }
 }
 
 // ── Employee Select → Missing Days Check ──
 document.getElementById('employeeSelect').addEventListener('change', function() {
-  currentEmployee = this.value;
-  if (currentEmployee) {
-    checkMissingDays(currentEmployee);
-  } else {
+  var val = this.value;
+  currentEmployee = val;
+  var cw = document.getElementById('customEmployeeWrap');
+  if (val === '__other__') {
+    cw.classList.remove('hidden');
+    document.getElementById('customEmployeeInput').focus();
     hideMissingBanner();
+  } else {
+    cw.classList.add('hidden');
+    if (val) {
+      checkMissingDays(val);
+    } else {
+      hideMissingBanner();
+    }
   }
 });
 
@@ -271,7 +297,182 @@ function fillDateFromMissing(dateStr) {
   document.getElementById('singleDate').value = dateStr;
 }
 
+// Get weekday name in Chinese
+function getWeekdayName(dateStr) {
+  var days = ['日', '一', '二', '三', '四', '五', '六'];
+  var d = new Date(dateStr + 'T00:00:00');
+  return '星期' + days[d.getDay()];
+}
+
+// Render per-date site blocks in range mode
+function renderRangeDateBlocks() {
+  var container = document.getElementById('rangeSitesContainer');
+  container.innerHTML = '';
+  var dates = getRangeDates();
+  if (!dates || dates.length === 0) return;
+  dates.forEach(function(date) {
+    var block = document.createElement('div');
+    block.className = 'date-block';
+    block.dataset.date = date;
+
+    // Header
+    var header = document.createElement('div');
+    header.className = 'date-block-header';
+    header.textContent = date + ' (' + getWeekdayName(date) + ')';
+    block.appendChild(header);
+
+    // Sites container for this date
+    var dateSites = document.createElement('div');
+    dateSites.className = 'date-sites';
+    block.appendChild(dateSites);
+
+    // Add site button for this date
+    var addBtn = document.createElement('button');
+    addBtn.className = 'add-btn';
+    addBtn.textContent = '+ 加入地盤';
+    addBtn.type = 'button';
+    addBtn.onclick = function() { addSiteRowToDateBlock(block); };
+    block.appendChild(addBtn);
+
+    // Total hours for this date
+    var totalDiv = document.createElement('div');
+    totalDiv.className = 'total-hours';
+    totalDiv.style.display = 'none';
+    block.appendChild(totalDiv);
+
+    container.appendChild(block);
+
+    // Start with one site row
+    addSiteRowToDateBlock(block);
+  });
+}
+
+// Add a site row to a date block (range mode)
+function addSiteRowToDateBlock(block, siteName, hours) {
+  var container = block.querySelector('.date-sites');
+  var row = document.createElement('div');
+  row.className = 'site-row';
+
+  // Dropdown
+  var sel = document.createElement('select');
+  sel.className = 'site-select';
+  sel.innerHTML = '<option value="">— 選擇地盤 —</option>';
+  sites.forEach(function(s) {
+    var opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.name;
+    if (s.name === siteName) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  // Other toggle
+  var otherInput = document.createElement('input');
+  otherInput.type = 'text';
+  otherInput.className = 'other-input hidden';
+  otherInput.placeholder = '輸入地盤名稱…';
+  otherInput.value = (siteName && !isInSites(siteName)) ? siteName : '';
+
+  var otherBtn = document.createElement('button');
+  otherBtn.className = 'other-toggle';
+  otherBtn.textContent = '其他';
+  otherBtn.type = 'button';
+  otherBtn.onclick = function() {
+    var isOther = otherInput.classList.toggle('hidden');
+    sel.classList.toggle('hidden');
+    otherBtn.textContent = isOther ? '其他' : '下拉選擇';
+    recalcRangeDateBlock(block);
+  };
+
+  // Hours
+  var hoursWrap = document.createElement('div');
+  hoursWrap.className = 'hours-wrap';
+  var hrInput = document.createElement('input');
+  hrInput.type = 'number';
+  hrInput.min = 1;
+  hrInput.max = 12;
+  hrInput.step = 0.5;
+  hrInput.value = hours || 8;
+  hrInput.className = 'hours-input';
+  hrInput.onchange = function() { recalcRangeDateBlock(block); };
+  hrInput.oninput = function() {
+    if (!this.dataset.manual) this.dataset.manual = 'true';
+  };
+  var unit = document.createElement('span');
+  unit.className = 'hours-unit';
+  unit.textContent = '小時';
+  hoursWrap.appendChild(hrInput);
+  hoursWrap.appendChild(unit);
+
+  // Delete button
+  var delBtn = document.createElement('button');
+  delBtn.className = 'btn-danger';
+  delBtn.textContent = '✕';
+  delBtn.type = 'button';
+  delBtn.onclick = function() {
+    row.remove();
+    recalcRangeDateBlock(block);
+  };
+
+  row.appendChild(sel);
+  row.appendChild(otherInput);
+  row.appendChild(otherBtn);
+  row.appendChild(hoursWrap);
+  row.appendChild(delBtn);
+  container.appendChild(row);
+  recalcRangeDateBlock(block);
+}
+
+// Recalculate hours for a single date block (range mode)
+function recalcRangeDateBlock(block) {
+  var rows = block.querySelectorAll('.site-row');
+  var n = rows.length;
+  var totalDiv = block.querySelector('.total-hours');
+  if (n === 0) {
+    totalDiv.style.display = 'none';
+    return;
+  }
+  var hoursPerSite = 8 / n;
+  var inputs = block.querySelectorAll('.hours-input');
+  var anyManual = false;
+  inputs.forEach(function(inp) {
+    if (!inp.dataset.manual) {
+      inp.value = roundHalf(hoursPerSite);
+    } else {
+      anyManual = true;
+    }
+  });
+  var total = 0;
+  inputs.forEach(function(inp) { total += parseFloat(inp.value) || 0; });
+  totalDiv.textContent = '總工時：' + roundHalf(total) + ' 小時';
+  totalDiv.style.display = 'block';
+}
+
+// Get list of dates from rangeFrom/rangeTo
+function getRangeDates() {
+  var from = document.getElementById('rangeFrom').value;
+  var to = document.getElementById('rangeTo').value;
+  if (!from || !to) return [];
+  if (from > to) return [];
+  var dates = [];
+  var cur = new Date(from + 'T00:00:00');
+  var end = new Date(to + 'T00:00:00');
+  while (cur <= end) {
+    dates.push(cur.toISOString().split('T')[0]);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+// Range date change handlers
+document.getElementById('rangeFrom').addEventListener('change', function() {
+  if (dateMode === 'range') renderRangeDateBlocks();
+});
+document.getElementById('rangeTo').addEventListener('change', function() {
+  if (dateMode === 'range') renderRangeDateBlocks();
+});
+
 // ── Site Rows ──
+// For single mode - same as before
 function addSiteRow(siteName, hours) {
   var container = document.getElementById('sitesContainer');
   var row = document.createElement('div');
@@ -399,30 +600,76 @@ function updateTotalSites() {
 }
 
 // ── Collect Data ──
+function getEmployeeName() {
+  var sel = document.getElementById('employeeSelect');
+  if (sel.value === '__other__') {
+    return document.getElementById('customEmployeeInput').value.trim();
+  }
+  return sel.value;
+}
+
 function collectRecords() {
-  var emp = document.getElementById('employeeSelect').value;
-  if (!emp) { showToast('請選擇員工姓名', 'error'); return null; }
+  var emp = getEmployeeName();
+  if (!emp) { showToast('請選擇或輸入員工姓名', 'error'); return null; }
 
   var dates = getSelectedDates();
   if (!dates || dates.length === 0) { showToast('請選擇日期', 'error'); return null; }
 
-  var siteData = getSiteData();
-  if (!siteData || siteData.length === 0) { showToast('請加入至少一個地盤', 'error'); return null; }
-
   var note = document.getElementById('noteInput').value.trim();
   var records = [];
-  dates.forEach(function(d) {
-    siteData.forEach(function(s) {
-      records.push({
-        date: d,
-        employee: emp,
-        site: s.name,
-        subsidiary: s.subsidiary || '',
-        hours: s.hours,
-        note: note
+
+  if (dateMode === 'single') {
+    var siteData = getSiteData();
+    if (!siteData || siteData.length === 0) { showToast('請加入至少一個地盤', 'error'); return null; }
+    dates.forEach(function(d) {
+      siteData.forEach(function(s) {
+        records.push({
+          date: d,
+          employee: emp,
+          site: s.name,
+          subsidiary: s.subsidiary || '',
+          hours: s.hours,
+          note: note
+        });
       });
     });
-  });
+  } else {
+    // Range mode: per-date sites
+    var blocks = document.querySelectorAll('.date-block');
+    if (blocks.length === 0) { showToast('請加入至少一個地盤', 'error'); return null; }
+    var hasAnySite = false;
+    blocks.forEach(function(block) {
+      var date = block.dataset.date;
+      var siteRows = block.querySelectorAll('.site-row');
+      siteRows.forEach(function(row) {
+        var sel = row.querySelector('.site-select');
+        var other = row.querySelector('.other-input');
+        var hrInput = row.querySelector('.hours-input');
+        var name = '';
+        var subsidiary = '';
+        if (sel && sel.classList.contains('hidden')) {
+          name = other ? other.value.trim() : '';
+        } else if (sel) {
+          name = sel.value;
+          for (var i = 0; i < sites.length; i++) {
+            if (sites[i].name === name) { subsidiary = sites[i].subsidiary || ''; break; }
+          }
+        }
+        if (name) {
+          hasAnySite = true;
+          records.push({
+            date: date,
+            employee: emp,
+            site: name,
+            subsidiary: subsidiary || '',
+            hours: parseFloat(hrInput ? hrInput.value : 0) || 0,
+            note: note
+          });
+        }
+      });
+    });
+    if (!hasAnySite) { showToast('請為每一天加入至少一個地盤', 'error'); return null; }
+  }
   return records;
 }
 
@@ -550,12 +797,17 @@ function doSubmit(records) {
 }
 
 function resetForm() {
-  // Clear sites except one
+  // Clear sites (both modes)
   document.getElementById('sitesContainer').innerHTML = '';
+  document.getElementById('rangeSitesContainer').innerHTML = '';
   addSiteRow();
   document.getElementById('noteInput').value = '';
   // Keep employee and date selection
   recalcHours();
+  // Re-render range blocks if in range mode
+  if (dateMode === 'range') {
+    renderRangeDateBlocks();
+  }
 }
 
 // ── Toast ──
