@@ -51,7 +51,7 @@ GitHub Pages (免费): static hosting for HTML files
 本项目使用的 GAS 网址：
 
 ```
-https://script.google.com/macros/s/AKfycbw9wWpDVdY0GvvFbmPW3m8Zh2L7wUT0u47WMxYgBDg16Z2_5W2zPjft9tH7spNx7aERjQ/exec
+https://script.google.com/macros/s/AKfycbwTKgAbzCoU2OIuUpJOm2XvspATO51m6yjHDEjiYiX67S5JvWQdo4Xo3ChfC2CnfKkflQ/exec
 ```
 
 若需更换 GAS 网址，请修改 employee.html 和 admin.html 最上方的 `GAS_URL` 变量。
