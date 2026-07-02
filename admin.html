@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理後台 — 地盤日報</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f5f5;--card:#fff;--primary:#1a73e8;--primary-hover:#1557b0;
+  --danger:#d93025;--warning:#f9ab00;--success:#188038;--text:#202124;
+  --muted:#5f6368;--border:#dadce0;--radius:6px;
+  --fs:15px;--fs-lg:18px;--fs-sm:13px;
+}
+html{font-size:var(--fs)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding:20px;min-height:100vh}
+h1{font-size:22px;font-weight:700;margin-bottom:16px}
+h2{font-size:var(--fs-lg);font-weight:600;margin:0 0 12px}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+label{display:block;font-weight:600;margin-bottom:4px}
+select,input[type=date],input[type=month],input[type=number],input[type=text],input[type=password]{
+  font-size:var(--fs);padding:8px 10px;border:1px solid var(--border);
+  border-radius:var(--radius);width:100%;background:var(--card);color:var(--text)
+}
+select{background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M1 3l4 4 4-4' fill='none' stroke='%235f6368' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;padding-right:28px}
+input:focus,select:focus{outline:none;border-color:var(--primary)}
+.btn{font-size:var(--fs);padding:8px 18px;border:none;border-radius:var(--radius);font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-outline{background:transparent;border:1px solid var(--primary);color:var(--primary)}
+.btn-danger{background:var(--danger);color:#fff;padding:4px 10px;font-size:var(--fs-sm)}
+.btn-small{font-size:var(--fs-sm);padding:4px 10px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:var(--fs)}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
+.actions{display:flex;gap:4px}
+.actions .btn{padding:3px 8px;font-size:var(--fs-sm)}
+.inline-form{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.inline-form .field{min-width:140px}
+.inline-form .field label{font-size:var(--fs-sm);margin-bottom:2px}
+.inline-form .field input,.inline-form .field select{font-size:var(--fs-sm);padding:6px 8px}
+.tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border)}
+.tab-btn{padding:10px 20px;border:none;background:transparent;font-size:var(--fs);font-weight:500;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px}
+.tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.toast{position:fixed;bottom:20px;right:20px;background:#323232;color:#fff;padding:10px 20px;border-radius:var(--radius);font-size:var(--fs);z-index:200;display:none;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.toast.success{background:var(--success)}
+.toast.error{background:var(--danger)}
+.pw-gate{max-width:400px;margin:60px auto}
+.pw-gate h1{text-align:center}
+.pw-gate .field{margin-bottom:12px}
+.pw-gate .btn{width:100%}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+.empty-msg{padding:20px;text-align:center;color:var(--muted);font-size:var(--fs)}
+.print-area{margin-top:12px}
+.print-area table{font-size:14px}
+.print-area .report-header{margin-bottom:12px}
+.print-area .report-header p{font-size:var(--fs-sm);color:var(--muted);margin:2px 0}
+.print-area .total-row{font-weight:600;background:#f8f9fa}
+.btn-print{background:#34a853;color:#fff;margin-top:12px}
+.btn-print:hover{background:#2e7d46}
+@media(max-width:768px){
+  body{padding:10px}
+  .inline-form{flex-direction:column;align-items:stretch}
+  .inline-form .field{min-width:auto}
+  .tabs{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+}
+@media print{.no-print{display:none!important}body{background:#fff;padding:10px}}
+</style>
+</head>
+<body>
+
+<!-- Password Gate -->
+<div id="pwGate" class="pw-gate card">
+  <h1>&#128274; 管理後台</h1>
+  <div class="field">
+    <label for="pwInput">輸入管理密碼</label>
+    <input type="password" id="pwInput" placeholder="請輸入密碼" onkeydown="if(event.key==='Enter')verifyPassword()">
+  </div>
+  <button class="btn btn-primary" onclick="verifyPassword()">解鎖</button>
+  <p id="pwError" style="color:var(--danger);margin-top:8px;display:none;font-size:var(--fs-sm)">密碼錯誤，請重試</p>
+</div>
+
+<!-- Main Content (locked) -->
+<div id="mainContent" class="hidden">
+  <h1>&#128202; 地盤日報 — 管理後台</h1>
+
+  <!-- Tabs -->
+  <div class="tabs no-print">
+    <button class="tab-btn active" onclick="switchTab('sites')">地盤管理</button>
+    <button class="tab-btn" onclick="switchTab('employees')">員工管理</button>
+    <button class="tab-btn" onclick="switchTab('subsidiaries')">子公司管理</button>
+    <button class="tab-btn" onclick="switchTab('report')">月結報表</button>
+  </div>
+
+  <!-- Tab: Sites -->
+  <div id="tabSites" class="tab-content active">
+    <h2>&#127963; 地盤列表</h2>
+    <div class="table-wrap"><table id="sitesTable"><thead><tr><th>地盤名稱</th><th>所屬子公司</th><th>操作</th></tr></thead><tbody id="sitesBody"></tbody></table></div>
+    <div class="inline-form no-print">
+      <div class="field"><label>地盤名稱</label><input type="text" id="newSiteName" placeholder="輸入地盤名"></div>
+      <div class="field"><label>所屬子公司</label><select id="newSiteSubsidiary"><option value="">（無）</option></select></div>
+      <button class="btn btn-primary" onclick="addSite()">新增地盤</button>
+    </div>
+  </div>
+
+  <!-- Tab: Employees -->
+  <div id="tabEmployees" class="tab-content">
+    <h2>&#128100; 員工列表</h2>
+    <div class="table-wrap"><table id="employeesTable"><thead><tr><th>員工姓名</th><th>月結開始日</th><th>操作</th></tr></thead><tbody id="employeesBody"></tbody></table></div>
+    <div class="inline-form no-print">
+      <div class="field"><label>員工姓名</label><input type="text" id="newEmployeeName" placeholder="輸入姓名"></div>
+      <div class="field"><label>月結開始日</label><select id="newEmployeeStartDay"></select></div>
+      <button class="btn btn-primary" onclick="addEmployee()">新增員工</button>
+    </div>
+  </div>
+
+  <!-- Tab: Subsidiaries -->
+  <div id="tabSubsidiaries" class="tab-content">
+    <h2>&#127970; 子公司列表</h2>
+    <div class="table-wrap"><table id="subsTable"><thead><tr><th>子公司名稱</th><th>操作</th></tr></thead><tbody id="subsBody"></tbody></table></div>
+    <div class="inline-form no-print">
+      <div class="field"><label>子公司名稱</label><input type="text" id="newSubName" placeholder="輸入子公司名"></div>
+      <button class="btn btn-primary" onclick="addSubsidiary()">新增子公司</button>
+    </div>
+  </div>
+
+  <!-- Tab: Report -->
+  <div id="tabReport" class="tab-content">
+    <h2>&#128196; 月結報表</h2>
+    <div class="inline-form no-print">
+      <div class="field"><label>員工</label><select id="reportEmployee"><option value="">— 請選擇 —</option></select></div>
+      <div class="field"><label>月份</label><input type="month" id="reportMonth"></div>
+      <button class="btn btn-primary" onclick="loadReport()">產生報表</button>
+    </div>
+    <div id="reportResult" class="print-area"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbw9wWpDVdY0GvvFbmPW3m8Zh2L7wUT0u47WMxYgBDg16Z2_5W2zPjft9tH7spNx7aERjQ/exec';
+var SESSION_PW = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Populate monthStartDay dropdown (1-28)
+  var sd = document.getElementById('newEmployeeStartDay');
+  for (var i = 1; i <= 28; i++) {
+    var opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = i + ' 號';
+    if (i === 1) opt.selected = true;
+    sd.appendChild(opt);
+  }
+});
+
+// ── Password ──
+function verifyPassword() {
+  var pw = document.getElementById('pwInput').value.trim();
+  if (!pw) return;
+  document.getElementById('pwError').style.display = 'none';
+  // Use GET to avoid GAS POST redirect losing the password body
+  fetch(GAS_URL + '?action=verifyPassword&password=' + encodeURIComponent(pw))
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.valid) {
+      if (pw === '') {
+        document.getElementById('pwError').textContent = '管理密碼尚未設定，請先在 Google Sheet 的 config tab 設定 (A1=admin_password, B1=你的密碼)';
+        document.getElementById('pwError').style.display = 'block';
+      } else {
+        SESSION_PW = pw;
+        document.getElementById('pwGate').classList.add('hidden');
+        document.getElementById('mainContent').classList.remove('hidden');
+        loadAllTabs();
+      }
+    } else {
+      document.getElementById('pwError').style.display = 'block';
+    }
+  })
+  .catch(function() {
+    document.getElementById('pwError').textContent = '連線錯誤，請檢查網絡';
+    document.getElementById('pwError').style.display = 'block';
+  });
+}
+// ── Tabs ──
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  document.querySelector('.tab-btn[onclick*="' + name + '"]').classList.add('active');
+  document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+}
+
+// ── Load All ──
+function loadAllTabs() {
+  loadSites();
+  loadEmployees();
+  loadSubsidiaries();
+}
+
+// ── Toast ──
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type || '');
+  t.style.display = 'block';
+  setTimeout(function() { t.style.display = 'none'; }, 3000);
+}
+
+// ── Sites ──
+function loadSites() {
+  fetch(GAS_URL + '?action=getSites')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      // Also load subsidiaries for the dropdown in the form
+      fetch(GAS_URL + '?action=getSubsidiaries')
+        .then(function(r) { return r.json(); })
+        .then(function(subs) {
+          renderSites(data, subs);
+        })
+        .catch(function() { renderSites(data, []); });
+    })
+    .catch(function() { showToast('無法載入地盤資料', 'error'); });
+}
+
+function renderSites(sites, subs) {
+  var body = document.getElementById('sitesBody');
+  body.innerHTML = '';
+  if (!sites || sites.length === 0) {
+    body.innerHTML = '<tr><td colspan="3" class="empty-msg">尚未加入地盤</td></tr>';
+  } else {
+    sites.forEach(function(s) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(s.name) + '</td><td>' + esc(s.subsidiary || '-') + '</td>' +
+        '<td class="actions">' +
+        '<button class="btn btn-danger btn-small" onclick="deleteSite(\'' + escAttr(s.name) + '\')">刪除</button>' +
+        '</td>';
+      body.appendChild(tr);
+    });
+  }
+  // Update subsidiary dropdown in add form
+  var subSel = document.getElementById('newSiteSubsidiary');
+  subSel.innerHTML = '<option value="">（無）</option>';
+  (subs || []).forEach(function(s) {
+    var opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.name;
+    subSel.appendChild(opt);
+  });
+}
+
+function addSite() {
+  var name = document.getElementById('newSiteName').value.trim();
+  var subsidiary = document.getElementById('newSiteSubsidiary').value;
+  if (!name) { showToast('請輸入地盤名稱', 'error'); return; }
+  fetch(GAS_URL + '?action=adminUpdateSite&password=' + encodeURIComponent(SESSION_PW) + '&name=' + encodeURIComponent(name) + '&subsidiary=' + encodeURIComponent(subsidiary))
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('地盤已新增/更新', 'success');
+      document.getElementById('newSiteName').value = '';
+      loadSites();
+    } else {
+      showToast(data.error || '操作失敗', 'error');
+    }
+  })
+  .catch(function() { showToast('連線錯誤', 'error'); });
+}
+
+function deleteSite(name) {
+  if (!confirm('確定刪除地盤「' + name + '」？')) return;
+  fetch(GAS_URL + '?action=adminDeleteSite&password=' + encodeURIComponent(SESSION_PW) + '&name=' + encodeURIComponent(name))
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) { showToast('地盤已刪除', 'success'); loadSites(); }
+    else { showToast(data.error || '刪除失敗', 'error'); }
+  })
+  .catch(function() { showToast('連線錯誤', 'error'); });
+}
+
+// ── Employees ──
+function loadEmployees() {
+  fetch(GAS_URL + '?action=getEmployees')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var body = document.getElementById('employeesBody');
+      body.innerHTML = '';
+      if (!data || data.length === 0) {
+        body.innerHTML = '<tr><td colspan="3" class="empty-msg">尚未加入員工</td></tr>';
+      } else {
+        data.forEach(function(e) {
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + esc(e.name) + '</td><td>' + (e.monthStartDay || 1) + ' 號</td>' +
+            '<td class="actions"><button class="btn btn-danger btn-small" onclick="deleteEmployee(\'' + escAttr(e.name) + '\')">刪除</button></td>';
+          body.appendChild(tr);
+        });
+      }
+      // Update report dropdown
+      updateReportEmployeeDropdown(data);
+    })
+    .catch(function() { showToast('無法載入員工資料', 'error'); });
+}
+
+function updateReportEmployeeDropdown(emps) {
+  var sel = document.getElementById('reportEmployee');
+  sel.innerHTML = '<option value="">— 請選擇 —</option>';
+  (emps || []).forEach(function(e) {
+    var opt = document.createElement('option');
+    opt.value = e.name;
+    opt.textContent = e.name;
+    sel.appendChild(opt);
+  });
+}
+
+function addEmployee() {
+  var name = document.getElementById('newEmployeeName').value.trim();
+  var startDay = parseInt(document.getElementById('newEmployeeStartDay').value) || 1;
+  if (!name) { showToast('請輸入員工姓名', 'error'); return; }
+  fetch(GAS_URL + '?action=adminAddEmployee&password=' + encodeURIComponent(SESSION_PW) + '&name=' + encodeURIComponent(name) + '&monthStartDay=' + encodeURIComponent(startDay))
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('員工已新增', 'success');
+      document.getElementById('newEmployeeName').value = '';
+      loadEmployees();
+    } else {
+      showToast(data.error || '操作失敗', 'error');
+    }
+  })
+  .catch(function() { showToast('連線錯誤', 'error'); });
+}
+
+function deleteEmployee(name) {
+  if (!confirm('確定刪除員工「' + name + '」？')) return;
+  fetch(GAS_URL + '?action=adminDeleteEmployee&password=' + encodeURIComponent(SESSION_PW) + '&name=' + encodeURIComponent(name))
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) { showToast('員工已刪除', 'success'); loadEmployees(); }
+    else { showToast(data.error || '刪除失敗', 'error'); }
+  })
+  .catch(function() { showToast('連線錯誤', 'error'); });
+}
+
+// ── Subsidiaries ──
+function loadSubsidiaries() {
+  fetch(GAS_URL + '?action=getSubsidiaries')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var body = document.getElementById('subsBody');
+      body.innerHTML = '';
+      if (!data || data.length === 0) {
+        body.innerHTML = '<tr><td colspan="2" class="empty-msg">尚未加入子公司</td></tr>';
+      } else {
+        data.forEach(function(s) {
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + esc(s.name) + '</td>' +
+            '<td class="actions"><button class="btn btn-danger btn-small" onclick="deleteSubsidiary(\'' + escAttr(s.name) + '\')">刪除</button></td>';
+          body.appendChild(tr);
+        });
+      }
+    })
+    .catch(function() { showToast('無法載入子公司資料', 'error'); });
+}
+
+function addSubsidiary() {
+  var name = document.getElementById('newSubName').value.trim();
+  if (!name) { showToast('請輸入子公司名稱', 'error'); return; }
+  fetch(GAS_URL + '?action=adminAddSubsidiary&password=' + encodeURIComponent(SESSION_PW) + '&name=' + encodeURIComponent(name))
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('子公司已新增', 'success');
+      document.getElementById('newSubName').value = '';
+      loadSubsidiaries();
+      loadSites(); // refresh site dropdown
+    } else {
+      showToast(data.error || '操作失敗', 'error');
+    }
+  })
+  .catch(function() { showToast('連線錯誤', 'error'); });
+}
+
+function deleteSubsidiary(name) {
+  if (!confirm('確定刪除子公司「' + name + '」？')) return;
+  fetch(GAS_URL + '?action=adminDeleteSubsidiary&password=' + encodeURIComponent(SESSION_PW) + '&name=' + encodeURIComponent(name))
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) { showToast('子公司已刪除', 'success'); loadSubsidiaries(); loadSites(); }
+    else { showToast(data.error || '刪除失敗', 'error'); }
+  })
+  .catch(function() { showToast('連線錯誤', 'error'); });
+}
+
+// ── Report ──
+function loadReport() {
+  var emp = document.getElementById('reportEmployee').value;
+  var month = document.getElementById('reportMonth').value;
+  if (!emp) { showToast('請選擇員工', 'error'); return; }
+  if (!month) { showToast('請選擇月份', 'error'); return; }
+
+  var resultDiv = document.getElementById('reportResult');
+  resultDiv.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">&#128259; 載入中…</p>';
+
+  fetch(GAS_URL + '?action=getRecordsForReport&employee=' + encodeURIComponent(emp) + '&month=' + encodeURIComponent(month) + '&password=' + encodeURIComponent(SESSION_PW))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        resultDiv.innerHTML = '<p style="color:var(--danger)">' + data.error + '</p>';
+        return;
+      }
+      renderReport(data, emp, month);
+    })
+    .catch(function() {
+      resultDiv.innerHTML = '<p style="color:var(--danger)">無法載入報表</p>';
+    });
+}
+
+function renderReport(data, emp, month) {
+  var div = document.getElementById('reportResult');
+  var records = data.records || [];
+  var rangeStart = data.rangeStart || '';
+  var rangeEnd = data.rangeEnd || '';
+
+  var html = '<div class="report-header">';
+  html += '<h2>月結報表 — ' + esc(emp) + '</h2>';
+  html += '<p>月份：' + month + ' (' + esc(rangeStart) + ' ~ ' + esc(rangeEnd) + ')</p>';
+  html += '<p>共 ' + records.length + ' 條記錄</p>';
+  html += '</div>';
+
+  if (records.length === 0) {
+    html += '<p class="empty-msg">本月無記錄</p>';
+  } else {
+    html += '<table><thead><tr><th>日期</th><th>地盤名稱</th><th>子公司</th><th>工時</th><th>備註</th></tr></thead><tbody>';
+    var totalHours = 0;
+    records.forEach(function(r) {
+      var h = parseFloat(r.hours) || 0;
+      totalHours += h;
+      html += '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.site) + '</td><td>' + esc(r.subsidiary || '-') + '</td><td>' + h + '</td><td>' + esc(r.note || '') + '</td></tr>';
+    });
+    html += '<tr class="total-row"><td colspan="3">合計</td><td>' + Math.round(totalHours * 10) / 10 + ' 小時</td><td></td></tr>';
+    html += '</tbody></table>';
+  }
+
+  html += '<button class="btn btn-print no-print" onclick="window.print()">&#128424; 打印</button>';
+  div.innerHTML = html;
+}
+
+// ── Helpers ──
+function esc(s) {
+  if (typeof s !== 'string') return s;
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return esc(s || '').replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>

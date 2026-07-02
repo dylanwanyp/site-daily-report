@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>地盤日報</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f5f5;--card:#fff;--primary:#1a73e8;--primary-hover:#1557b0;
+  --danger:#d93025;--warning:#f9ab00;--success:#188038;--text:#202124;
+  --muted:#5f6368;--border:#dadce0;--radius:8px;
+  --fs-base:18px;--fs-lg:22px;--fs-xl:26px;--fs-sm:15px;
+}
+html{font-size:var(--fs-base);line-height:1.5}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding:12px 12px 80px;min-height:100vh}
+h1{font-size:var(--fs-xl);font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+h2{font-size:var(--fs-lg);font-weight:600;margin:16px 0 8px}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+label{display:block;font-weight:600;margin-bottom:4px;font-size:var(--fs-lg)}
+select,input[type=date],input[type=number],input[type=text],textarea{
+  font-size:var(--fs-lg);padding:10px 12px;border:2px solid var(--border);
+  border-radius:var(--radius);width:100%;background:var(--card);
+  color:var(--text);-webkit-appearance:none;appearance:none
+}
+select{background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%235f6368' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center;padding-right:32px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)}
+input[type=number]{width:100px;flex-shrink:0}
+textarea{font-family:inherit;min-height:60px;resize:vertical}
+.btn{font-size:var(--fs-lg);padding:12px 24px;border:none;border-radius:var(--radius);font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:48px}
+.btn-primary{background:var(--primary);color:#fff;width:100%}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-outline{background:transparent;border:2px solid var(--primary);color:var(--primary);padding:8px 16px;font-size:var(--fs-base)}
+.btn-small{font-size:var(--fs-base);padding:6px 12px;min-height:36px}
+.btn-danger{background:transparent;border:2px solid var(--danger);color:var(--danger);padding:4px 10px;font-size:var(--fs-sm);min-height:32px;border-radius:var(--radius);cursor:pointer}
+.site-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.site-row select{flex:1;min-width:120px}
+.site-row .other-input{flex:1;min-width:120px}
+.site-row .hours-wrap{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.site-row .hours-wrap input{width:80px}
+.hours-unit{font-size:var(--fs-sm);color:var(--muted)}
+.other-toggle{font-size:var(--fs-sm);color:var(--primary);cursor:pointer;text-decoration:underline;white-space:nowrap;background:none;border:none;padding:4px}
+.add-btn{font-size:var(--fs-base);padding:10px 16px;border:2px dashed var(--border);border-radius:var(--radius);background:transparent;color:var(--primary);cursor:pointer;width:100%;font-weight:600}
+.add-btn:hover{background:#f0f5ff}
+.mode-toggle{display:flex;gap:0;margin-bottom:8px}
+.mode-btn{flex:1;padding:10px;border:2px solid var(--border);background:var(--card);font-size:var(--fs-base);cursor:pointer;font-weight:500}
+.mode-btn:first-child{border-radius:var(--radius) 0 0 var(--radius)}
+.mode-btn:last-child{border-radius:0 var(--radius) 0 var(--radius)}
+.mode-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.date-range{display:flex;gap:8px;align-items:center}
+.date-range label{font-size:var(--fs-base);margin:0;white-space:nowrap}
+.date-range input{flex:1}
+.missing-banner{background:#fef7e0;border:2px solid var(--warning);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;display:none}
+.missing-banner .title{font-weight:600;font-size:var(--fs-lg);margin-bottom:6px}
+.missing-dates{display:flex;flex-wrap:wrap;gap:6px}
+.missing-date{background:#fff;border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-size:var(--fs-sm);cursor:pointer}
+.missing-date:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+.dup-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;padding:16px}
+.dup-modal.show{display:flex}
+.dup-modal .card{max-width:480px;width:100%}
+.dup-modal h3{font-size:var(--fs-lg);margin-bottom:8px}
+.dup-modal .dup-list{margin:8px 0;padding-left:20px;font-size:var(--fs-base)}
+.dup-modal .btn-group{display:flex;gap:8px;margin-top:12px}
+.dup-modal .btn-group .btn{flex:1}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:12px 24px;border-radius:var(--radius);font-size:var(--fs-base);z-index:200;display:none;max-width:90%;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.toast.success{background:var(--success)}
+.toast.error{background:var(--danger)}
+.spinner{display:inline-block;width:20px;height:20px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+.loading-msg{text-align:center;padding:40px 16px;font-size:var(--fs-lg);color:var(--muted)}
+.note-wrap{margin-top:8px}
+.total-hours{font-size:var(--fs-lg);font-weight:600;margin-top:8px;color:var(--primary)}
+@media(max-width:480px){
+  .site-row{flex-direction:column;align-items:stretch;gap:6px}
+  .site-row select,.site-row .other-input{width:100%}
+  .site-row .hours-wrap{width:100%;justify-content:space-between}
+  .date-range{flex-direction:column;align-items:stretch}
+  body{padding:8px 8px 100px}
+}
+@media print{body{background:#fff;padding:0}.no-print{display:none!important}}
+</style>
+</head>
+<body>
+
+<h1>&#128221; 地盤日報</h1>
+
+<!-- Missing days banner -->
+<div id="missingBanner" class="missing-banner">
+  <div class="title">&#9888;&#65039; 過去一個月有 <span id="missingCount">0</span> 天未填寫</div>
+  <p style="margin-bottom:6px;font-size:var(--fs-base)">點擊日期即可設定日期範圍補填：</p>
+  <div id="missingDates" class="missing-dates"></div>
+</div>
+
+<!-- Step 1: Employee -->
+<div class="card">
+  <label for="employeeSelect">&#128100; 員工姓名</label>
+  <select id="employeeSelect"><option value="">— 請選擇 —</option></select>
+</div>
+
+<!-- Step 2: Date -->
+<div class="card">
+  <label>&#128197; 日期</label>
+  <div class="mode-toggle no-print">
+    <button id="singleModeBtn" class="mode-btn active" onclick="setDateMode('single')">單日</button>
+    <button id="rangeModeBtn" class="mode-btn" onclick="setDateMode('range')">批次 (多日)</button>
+  </div>
+  <div id="singleDateWrap">
+    <input type="date" id="singleDate">
+  </div>
+  <div id="rangeDateWrap" class="date-range hidden">
+    <label>由</label>
+    <input type="date" id="rangeFrom">
+    <label>至</label>
+    <input type="date" id="rangeTo">
+  </div>
+</div>
+
+<!-- Step 3: Sites -->
+<div class="card">
+  <label>&#127963; 工作地盤</label>
+  <div id="sitesContainer"></div>
+  <button class="add-btn no-print" onclick="addSiteRow()" id="addSiteBtn">+ 加入地盤</button>
+  <div id="totalHoursDisplay" class="total-hours hidden">總工時：8 小時</div>
+</div>
+
+<!-- Note -->
+<div class="card">
+  <label for="noteInput">&#128221; 備註 (可選)</label>
+  <textarea id="noteInput" placeholder="例如：地盤A額外工作備註…" rows="2"></textarea>
+</div>
+
+<!-- Submit -->
+<button class="btn btn-primary no-print" onclick="handleSubmit()" id="submitBtn">&#128228; 提交記錄</button>
+
+<!-- Duplicate modal -->
+<div id="dupModal" class="dup-modal">
+  <div class="card">
+    <h3>&#9888;&#65039; 重複日期提示</h3>
+    <p style="font-size:var(--fs-base);margin-bottom:4px">以下日期已有記錄，確定要繼續提交嗎？</p>
+    <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:8px">（已存在的記錄不會被覆蓋，會追加新行）</p>
+    <ul id="dupList" class="dup-list"></ul>
+    <div class="btn-group">
+      <button class="btn btn-outline" onclick="closeDupModal()" style="font-size:var(--fs-base)">取消</button>
+      <button class="btn btn-primary" onclick="confirmSubmit()" id="confirmDupBtn" style="font-size:var(--fs-base)">確定繼續</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+// ── Configuration ──
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbw9wWpDVdY0GvvFbmPW3m8Zh2L7wUT0u47WMxYgBDg16Z2_5W2zPjft9tH7spNx7aERjQ/exec'; // ponytail: set once on deploy
+
+// ── State ──
+var sites = [];
+var employees = [];
+var subsidiaries = [];
+var currentEmployee = '';
+var dateMode = 'single'; // 'single' | 'range'
+var pendingRecords = [];
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function() {
+  loadData();
+  setMinMaxDates();
+  addSiteRow(); // start with one site row
+});
+
+function setMinMaxDates() {
+  var today = new Date().toISOString().split('T')[0];
+  document.querySelectorAll('input[type=date]').forEach(function(el) {
+    el.max = today;
+  });
+}
+
+function loadData() {
+  showLoading(true);
+  var p1 = fetch(GAS_URL + '?action=getSites').then(function(r) { return r.json(); }).then(function(d) { sites = d; }).catch(function() { sites = []; });
+  var p2 = fetch(GAS_URL + '?action=getEmployees').then(function(r) { return r.json(); }).then(function(d) { employees = d; }).catch(function() { employees = []; });
+  var p3 = fetch(GAS_URL + '?action=getSubsidiaries').then(function(r) { return r.json(); }).then(function(d) { subsidiaries = d; }).catch(function() { subsidiaries = []; });
+  Promise.all([p1, p2, p3]).then(function() {
+    populateEmployees();
+    showLoading(false);
+  }).catch(function() {
+    showToast('無法載入資料，請檢查網絡或 GAS 設定', 'error');
+    showLoading(false);
+  });
+}
+
+function populateEmployees() {
+  var sel = document.getElementById('employeeSelect');
+  sel.innerHTML = '<option value="">— 請選擇 —</option>';
+  employees.forEach(function(e) {
+    var opt = document.createElement('option');
+    opt.value = e.name;
+    opt.textContent = e.name;
+    sel.appendChild(opt);
+  });
+}
+
+function showLoading(show) {
+  var msg = document.getElementById('loadingMsg');
+  if (!msg) {
+    msg = document.createElement('div');
+    msg.id = 'loadingMsg';
+    msg.className = 'loading-msg';
+    msg.innerHTML = '&#128259; 載入資料中…';
+    document.body.insertBefore(msg, document.body.firstChild);
+  }
+  msg.style.display = show ? 'block' : 'none';
+}
+
+// ── Date Mode Toggle ──
+function setDateMode(mode) {
+  dateMode = mode;
+  document.getElementById('singleModeBtn').classList.toggle('active', mode === 'single');
+  document.getElementById('rangeModeBtn').classList.toggle('active', mode === 'range');
+  document.getElementById('singleDateWrap').classList.toggle('hidden', mode !== 'single');
+  document.getElementById('rangeDateWrap').classList.toggle('hidden', mode !== 'range');
+}
+
+// ── Employee Select → Missing Days Check ──
+document.getElementById('employeeSelect').addEventListener('change', function() {
+  currentEmployee = this.value;
+  if (currentEmployee) {
+    checkMissingDays(currentEmployee);
+  } else {
+    hideMissingBanner();
+  }
+});
+
+function checkMissingDays(employee) {
+  fetch(GAS_URL + '?action=checkMissing&employee=' + encodeURIComponent(employee))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.missingDates && data.missingDates.length > 0) {
+        showMissingBanner(data.missingDates);
+      } else {
+        hideMissingBanner();
+      }
+    })
+    .catch(function() { hideMissingBanner(); });
+}
+
+function showMissingBanner(dates) {
+  var banner = document.getElementById('missingBanner');
+  document.getElementById('missingCount').textContent = dates.length;
+  var container = document.getElementById('missingDates');
+  container.innerHTML = '';
+  dates.forEach(function(d) {
+    var btn = document.createElement('button');
+    btn.className = 'missing-date';
+    btn.textContent = d;
+    btn.onclick = function() { fillDateFromMissing(d); };
+    container.appendChild(btn);
+  });
+  banner.style.display = 'block';
+}
+
+function hideMissingBanner() {
+  document.getElementById('missingBanner').style.display = 'none';
+}
+
+function fillDateFromMissing(dateStr) {
+  // Switch to single date mode and set the date
+  setDateMode('single');
+  document.getElementById('singleDate').value = dateStr;
+}
+
+// ── Site Rows ──
+function addSiteRow(siteName, hours) {
+  var container = document.getElementById('sitesContainer');
+  var row = document.createElement('div');
+  row.className = 'site-row';
+
+  // Dropdown
+  var sel = document.createElement('select');
+  sel.className = 'site-select';
+  sel.innerHTML = '<option value="">— 選擇地盤 —</option>';
+  sites.forEach(function(s) {
+    var opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.name;
+    if (s.name === siteName) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  // Other toggle
+  var otherInput = document.createElement('input');
+  otherInput.type = 'text';
+  otherInput.className = 'other-input hidden';
+  otherInput.placeholder = '輸入地盤名稱…';
+  otherInput.value = (siteName && !isInSites(siteName)) ? siteName : '';
+
+  var otherBtn = document.createElement('button');
+  otherBtn.className = 'other-toggle';
+  otherBtn.textContent = '其他';
+  otherBtn.type = 'button';
+  otherBtn.onclick = function() {
+    var isOther = otherInput.classList.toggle('hidden');
+    sel.classList.toggle('hidden');
+    otherBtn.textContent = isOther ? '其他' : '下拉選擇';
+    if (!isOther && otherInput.value) {
+      // Switching back to dropdown
+    }
+    recalcHours();
+  };
+
+  // Hours
+  var hoursWrap = document.createElement('div');
+  hoursWrap.className = 'hours-wrap';
+  var hrInput = document.createElement('input');
+  hrInput.type = 'number';
+  hrInput.min = 1;
+  hrInput.max = 12;
+  hrInput.step = 0.5;
+  hrInput.value = hours || 8;
+  hrInput.className = 'hours-input';
+  hrInput.onchange = recalcHours;
+  var unit = document.createElement('span');
+  unit.className = 'hours-unit';
+  unit.textContent = '小時';
+  hoursWrap.appendChild(hrInput);
+  hoursWrap.appendChild(unit);
+
+  // Delete button
+  var delBtn = document.createElement('button');
+  delBtn.className = 'btn-danger';
+  delBtn.textContent = '✕';
+  delBtn.type = 'button';
+  delBtn.onclick = function() {
+    row.remove();
+    recalcHours();
+    updateTotalSites();
+  };
+
+  row.appendChild(sel);
+  row.appendChild(otherInput);
+  row.appendChild(otherBtn);
+  row.appendChild(hoursWrap);
+  row.appendChild(delBtn);
+  container.appendChild(row);
+  recalcHours();
+  updateTotalSites();
+}
+
+function isInSites(name) {
+  for (var i = 0; i < sites.length; i++) {
+    if (sites[i].name === name) return true;
+  }
+  return false;
+}
+
+function recalcHours() {
+  var rows = document.querySelectorAll('.site-row');
+  var n = rows.length;
+  if (n === 0) {
+    document.getElementById('totalHoursDisplay').classList.add('hidden');
+    return;
+  }
+  var hoursPerSite = 8 / n;
+  var inputs = document.querySelectorAll('.hours-input');
+  var manuallyChanged = false;
+  inputs.forEach(function(inp) {
+    // Only auto-set if it hasn't been manually changed
+    if (!inp.dataset.manual) {
+      inp.value = roundHalf(hoursPerSite);
+    } else {
+      manuallyChanged = true;
+    }
+  });
+  // Show total
+  var total = 0;
+  inputs.forEach(function(inp) { total += parseFloat(inp.value) || 0; });
+  var td = document.getElementById('totalHoursDisplay');
+  td.textContent = '總工時：' + roundHalf(total) + ' 小時';
+  td.classList.remove('hidden');
+}
+
+// Mark hours as manually changed on first user interaction
+document.addEventListener('input', function(e) {
+  if (e.target.classList.contains('hours-input')) {
+    if (!e.target.dataset.manual) {
+      e.target.dataset.manual = 'true';
+    }
+  }
+});
+
+function roundHalf(v) { return Math.round(v * 2) / 2; }
+
+function updateTotalSites() {
+  var rows = document.querySelectorAll('.site-row');
+  document.getElementById('addSiteBtn').textContent = '+ 加入地盤 (' + rows.length + ')';
+  document.getElementById('submitBtn').disabled = rows.length === 0;
+}
+
+// ── Collect Data ──
+function collectRecords() {
+  var emp = document.getElementById('employeeSelect').value;
+  if (!emp) { showToast('請選擇員工姓名', 'error'); return null; }
+
+  var dates = getSelectedDates();
+  if (!dates || dates.length === 0) { showToast('請選擇日期', 'error'); return null; }
+
+  var siteData = getSiteData();
+  if (!siteData || siteData.length === 0) { showToast('請加入至少一個地盤', 'error'); return null; }
+
+  var note = document.getElementById('noteInput').value.trim();
+  var records = [];
+  dates.forEach(function(d) {
+    siteData.forEach(function(s) {
+      records.push({
+        date: d,
+        employee: emp,
+        site: s.name,
+        subsidiary: s.subsidiary || '',
+        hours: s.hours,
+        note: note
+      });
+    });
+  });
+  return records;
+}
+
+function getSelectedDates() {
+  if (dateMode === 'single') {
+    var d = document.getElementById('singleDate').value;
+    return d ? [d] : [];
+  } else {
+    var from = document.getElementById('rangeFrom').value;
+    var to = document.getElementById('rangeTo').value;
+    if (!from || !to) return [];
+    if (from > to) { showToast('開始日期不能晚於結束日期', 'error'); return []; }
+    var dates = [];
+    var cur = new Date(from);
+    var end = new Date(to);
+    while (cur <= end) {
+      dates.push(cur.toISOString().split('T')[0]);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }
+}
+
+function getSiteData() {
+  var result = [];
+  var rows = document.querySelectorAll('.site-row');
+  rows.forEach(function(row) {
+    var sel = row.querySelector('.site-select');
+    var other = row.querySelector('.other-input');
+    var hrInput = row.querySelector('.hours-input');
+    var name = '';
+    var subsidiary = '';
+    if (sel.classList.contains('hidden')) {
+      name = other.value.trim();
+    } else {
+      name = sel.value;
+      // Look up subsidiary
+      for (var i = 0; i < sites.length; i++) {
+        if (sites[i].name === name) { subsidiary = sites[i].subsidiary || ''; break; }
+      }
+    }
+    if (name) {
+      result.push({name: name, subsidiary: subsidiary, hours: parseFloat(hrInput.value) || 0});
+    }
+  });
+  return result;
+}
+
+// ── Submit Flow ──
+function handleSubmit() {
+  var records = collectRecords();
+  if (!records || records.length === 0) return;
+  pendingRecords = records;
+
+  // Check duplicates
+  var emp = records[0].employee;
+  var uniqueDates = [];
+  var seen = {};
+  records.forEach(function(r) {
+    if (!seen[r.date]) { seen[r.date] = true; uniqueDates.push(r.date); }
+  });
+
+  fetch(GAS_URL + '?action=getExistingDates&employee=' + encodeURIComponent(emp) + '&dates=' + encodeURIComponent(uniqueDates.join(',')))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.existingDates && data.existingDates.length > 0) {
+        showDupModal(data.existingDates);
+      } else {
+        confirmSubmit();
+      }
+    })
+    .catch(function() {
+      // If duplicate check fails, proceed anyway
+      confirmSubmit();
+    });
+}
+
+function showDupModal(dates) {
+  var list = document.getElementById('dupList');
+  list.innerHTML = '';
+  dates.forEach(function(d) {
+    var li = document.createElement('li');
+    li.textContent = d;
+    list.appendChild(li);
+  });
+  document.getElementById('dupModal').classList.add('show');
+}
+
+function closeDupModal() {
+  document.getElementById('dupModal').classList.remove('show');
+  pendingRecords = [];
+}
+
+function confirmSubmit() {
+  document.getElementById('dupModal').classList.remove('show');
+  doSubmit(pendingRecords);
+}
+
+function doSubmit(records) {
+  var btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 提交中…';
+
+  fetch(GAS_URL + '?action=submitRecords', {
+    method: 'POST',
+    body: JSON.stringify(records),
+    headers: {'Content-Type': 'text/plain'}
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('成功提交 ' + data.count + ' 條記錄！', 'success');
+      resetForm();
+    } else {
+      showToast('提交失敗：' + (data.error || '未知錯誤'), 'error');
+    }
+  })
+  .catch(function(err) {
+    showToast('提交失敗：' + err.message, 'error');
+  })
+  .finally(function() {
+    btn.disabled = false;
+    btn.innerHTML = '&#128228; 提交記錄';
+  });
+}
+
+function resetForm() {
+  // Clear sites except one
+  document.getElementById('sitesContainer').innerHTML = '';
+  addSiteRow();
+  document.getElementById('noteInput').value = '';
+  // Keep employee and date selection
+  recalcHours();
+}
+
+// ── Toast ──
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type || '');
+  t.style.display = 'block';
+  setTimeout(function() { t.style.display = 'none'; }, 3500);
+}
+
+// ── Listen for site row changes to recalc hours ──
+document.getElementById('sitesContainer').addEventListener('change', function(e) {
+  if (e.target.classList.contains('site-select')) {
+    recalcHours();
+  }
+});
+</script>
+</body>
+</html>
