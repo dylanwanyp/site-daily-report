@@ -96,6 +96,7 @@ th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
     <button class="tab-btn" onclick="switchTab('employees')">員工管理</button>
     <button class="tab-btn" onclick="switchTab('subsidiaries')">子公司管理</button>
     <button class="tab-btn" onclick="switchTab('report')">月結報表</button>
+    <button class="tab-btn" onclick="switchTab('subsidiaryreport')">子公司月結</button>
   </div>
 
   <!-- Tab: Sites -->
@@ -141,6 +142,17 @@ th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
     <div id="reportResult" class="print-area"></div>
   </div>
 </div>
+
+  <!-- Tab: Subsidiary Report -->
+  <div id="tabSubsidiaryreport" class="tab-content">
+    <h2>&#128202; 子公司月結報表</h2>
+    <div class="inline-form no-print">
+      <div class="field"><label>子公司</label><select id="subReportSubsidiary"><option value="">&#8212; 請選擇 &#8212;</option></select></div>
+      <div class="field"><label>月份</label><input type="month" id="subReportMonth"></div>
+      <button class="btn btn-primary" onclick="loadSubsidiaryReport()">產生報表</button>
+    </div>
+    <div id="subReportResult" class="print-area"></div>
+  </div>
 
 <!-- Toast -->
 <div id="toast" class="toast"></div>
@@ -369,6 +381,15 @@ function loadSubsidiaries() {
           body.appendChild(tr);
         });
       }
+      // Populate subsidiary report dropdown
+      var subSel = document.getElementById('subReportSubsidiary');
+      subSel.innerHTML = '<option value="">&#8212; 請選擇 &#8212;</option>';
+      (data || []).forEach(function(s) {
+        var opt = document.createElement('option');
+        opt.value = s.name;
+        opt.textContent = s.name;
+        subSel.appendChild(opt);
+      });
     })
     .catch(function() { showToast('無法載入子公司資料', 'error'); });
 }
@@ -460,6 +481,53 @@ function esc(s) {
 }
 function escAttr(s) {
   return esc(s || '').replace(/'/g,'&#39;');
+}
+
+// ── Subsidiary Report ──
+function loadSubsidiaryReport() {
+  var sub = document.getElementById('subReportSubsidiary').value;
+  var month = document.getElementById('subReportMonth').value;
+  if (!sub) { showToast('請選擇子公司', 'error'); return; }
+  if (!month) { showToast('請選擇月份', 'error'); return; }
+  var resultDiv = document.getElementById('subReportResult');
+  resultDiv.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">&#128259; 載入中…</p>';
+  gasPost('getSubsidiaryReport', {password: SESSION_PW, subsidiary: sub, month: month})
+    .then(function(data) {
+      if (data.error) {
+        resultDiv.innerHTML = '<p style="color:var(--danger)">' + data.error + '</p>';
+        return;
+      }
+      renderSubsidiaryReport(data);
+    })
+    .catch(function() { resultDiv.innerHTML = '<p style="color:var(--danger)">無法載入報表</p>'; });
+}
+
+function renderSubsidiaryReport(data) {
+  var div = document.getElementById('subReportResult');
+  var sites = data.sites || [];
+  var html = '<div class="report-header">';
+  html += '<h2>&#127970; 子公司月結 — ' + esc(data.subsidiary) + '</h2>';
+  html += '<p>月份：' + esc(data.rangeStart) + ' ~ ' + esc(data.rangeEnd) + '</p>';
+  html += '<p>共 ' + sites.length + ' 個地盤產生記錄</p>';
+  html += '</div>';
+  if (sites.length === 0) {
+    html += '<p class="empty-msg">該月無記錄</p>';
+  } else {
+    sites.forEach(function(s) {
+      html += '<div style="margin-top:16px"><h3>&#127963; ' + esc(s.site) + '</h3>';
+      html += '<table><thead><tr><th>員工姓名</th><th>工作日數</th></tr></thead><tbody>';
+      s.workers.forEach(function(w) {
+        html += '<tr><td>' + esc(w.name) + '</td><td>' + w.days + ' 天</td></tr>';
+      });
+      html += '<tr class="total-row"><td>地盤合計</td><td>' + s.totalWorkerDays + ' 工人日</td></tr>';
+      html += '</tbody></table></div>';
+    });
+    html += '<div style="margin-top:16px;padding:12px;background:#e8f5e9;border-radius:4px;font-weight:600">';
+    html += '總工人工作日數：' + data.grandTotal + ' 日';
+    html += '</div>';
+  }
+  html += '<button class="btn btn-print no-print" onclick="window.print()" style="margin-top:16px">&#128424; 打印</button>';
+  div.innerHTML = html;
 }
 </script>
 </body>

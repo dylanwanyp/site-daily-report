@@ -40,6 +40,10 @@ function routeAction(action, e, isPost) {
     case 'adminAddEmployee': case 'adminDeleteEmployee':
     case 'adminAddSubsidiary': case 'adminDeleteSubsidiary':
       return json(adminAction(action, e, isPost));
+    case 'getSubsidiaryReport':
+      var a2 = checkAdmin(e, isPost);
+      if (!a2.ok) return json(a2);
+      return json(getSubsidiaryReport(e, isPost));
     default: return json({error: 'Unknown action: ' + action});
   }
 }
@@ -293,4 +297,45 @@ function fmtDate(d) {
 }
 function fmtDateTime(d) {
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+
+// ── Subsidiary Report ──
+function getSubsidiaryReport(e, isPost) {
+  var p = parseParams(e, isPost);
+  var subName = (p.subsidiary || '').trim();
+  var month = p.month || '';
+  if (!subName) return {error: 'Subsidiary required'};
+  if (!month) return {error: 'Month required'};
+  var parts = month.split('-');
+  var year = parseInt(parts[0], 10);
+  var mon = parseInt(parts[1], 10);
+  var rStart = new Date(year, mon - 1, 1);
+  var rEnd = new Date(year, mon, 0, 23, 59, 59);
+  var rows = readSheet(RECS);
+  var siteEmpDays = {};
+  var siteTotals = {};
+  for (var j = 0; j < rows.length; j++) {
+    if (String(rows[j][3] || '').trim() !== subName) continue;
+    var d = new Date(rows[j][0]);
+    if (isNaN(d.getTime())) continue;
+    if (d < rStart || d > rEnd) continue;
+    var emp = String(rows[j][1]).trim();
+    var site = String(rows[j][2]).trim();
+    if (!siteEmpDays[site]) siteEmpDays[site] = {};
+    if (!siteEmpDays[site][emp]) siteEmpDays[site][emp] = 0;
+    siteEmpDays[site][emp]++;
+    if (!siteTotals[site]) siteTotals[site] = 0;
+    siteTotals[site]++;
+  }
+  var out = [];
+  Object.keys(siteTotals).sort().forEach(function(sn) {
+    var wl = [];
+    Object.keys(siteEmpDays[sn]).sort().forEach(function(en) {
+      wl.push({name: en, days: siteEmpDays[sn][en]});
+    });
+    out.push({site: sn, totalWorkerDays: siteTotals[sn], workers: wl});
+  });
+  var gt = 0;
+  Object.keys(siteTotals).forEach(function(s) { gt += siteTotals[s]; });
+  return {subsidiary: subName, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), sites: out, grandTotal: gt};
 }
