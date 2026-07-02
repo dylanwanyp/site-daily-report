@@ -64,6 +64,8 @@ th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
 .print-area .total-row{font-weight:600;background:#f8f9fa}
 .btn-print{background:#34a853;color:#fff;margin-top:12px}
 .btn-print:hover{background:#2e7d46}
+.btn-excel{background:#217346;color:#fff;margin-top:12px;margin-right:4px}
+.btn-excel:hover{background:#1a5c37}
 @media(max-width:768px){
   body{padding:10px}
   .inline-form{flex-direction:column;align-items:stretch}
@@ -470,6 +472,7 @@ function renderReport(data, emp, month) {
     html += '</tbody></table>';
   }
 
+  html += '<button class="btn btn-excel no-print" onclick="exportReportCSV()">&#128196; 匯出 CSV</button>';
   html += '<button class="btn btn-print no-print" onclick="window.print()">&#128424; 打印</button>';
   div.innerHTML = html;
 }
@@ -526,8 +529,105 @@ function renderSubsidiaryReport(data) {
     html += '總工人工作日數：' + data.grandTotal + ' 日';
     html += '</div>';
   }
+  html += '<button class="btn btn-excel no-print" onclick="exportSubsidiaryCSV()">&#128196; 匯出 CSV</button>';
   html += '<button class="btn btn-print no-print" onclick="window.print()" style="margin-top:16px">&#128424; 打印</button>';
   div.innerHTML = html;
+}
+
+// ── CSV Export ──
+function csvEscape(val) {
+  var s = String(val || '');
+  if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function exportReportCSV() {
+  var emp = document.getElementById('reportEmployee').value;
+  var month = document.getElementById('reportMonth').value;
+  if (!emp) { showToast('請先產生報表再匯出', 'error'); return; }
+  if (!month) { showToast('請先產生報表再匯出', 'error'); return; }
+  
+  var btn = event && event.target ? event.target : document.querySelector('.btn-excel');
+  if (btn) { btn.textContent = '⏳ 生成中…'; btn.disabled = true; }
+  
+  gasPost('getRecordsForReport', {password: SESSION_PW, employee: emp, month: month})
+    .then(function(data) {
+      if (!data || data.error || !data.records) {
+        showToast('無資料可匯出', 'error');
+        if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
+        return;
+      }
+      var csv = '\uFEFF'; // BOM for Excel Unicode
+      csv += '日期,員工姓名,地盤名稱,子公司,工時(小時),備註\n';
+      var total = 0;
+      data.records.forEach(function(r) {
+        var h = parseFloat(r.hours) || 0;
+        total += h;
+        csv += [csvEscape(r.date), csvEscape(r.employee), csvEscape(r.site), csvEscape(r.subsidiary), h, csvEscape(r.note)].join(',') + '\n';
+      });
+      csv += ',,,,,\n';
+      csv += '合計工時,,,, ' + Math.round(total * 10) / 10 + ' ,\n';
+      downloadCSV(csv, '月結報表_' + emp + '_' + month + '.csv');
+      if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
+    })
+    .catch(function() {
+      showToast('匯出失敗', 'error');
+      if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
+    });
+}
+
+function exportSubsidiaryCSV() {
+  var sub = document.getElementById('subReportSubsidiary').value;
+  var month = document.getElementById('subReportMonth').value;
+  if (!sub) { showToast('請先產生報表再匯出', 'error'); return; }
+  if (!month) { showToast('請先產生報表再匯出', 'error'); return; }
+  
+  var btn = document.querySelector('.tab-content:not(.hidden) .btn-excel');
+  if (btn) { btn.textContent = '⏳ 生成中…'; btn.disabled = true; }
+  
+  gasPost('getSubsidiaryReport', {password: SESSION_PW, subsidiary: sub, month: month})
+    .then(function(data) {
+      if (!data || data.error || !data.sites) {
+        showToast('無資料可匯出', 'error');
+        if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
+        return;
+      }
+      var csv = '\uFEFF';
+      csv += '子公司:' + csvEscape(data.subsidiary) + ',月份:' + csvEscape(data.rangeStart) + ' ~ ' + csvEscape(data.rangeEnd) + '\n';
+      csv += '地盤名稱,員工姓名,工作日數\n';
+      data.sites.forEach(function(s) {
+        s.workers.forEach(function(w) {
+          csv += csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.days + '\n';
+        });
+      });
+      csv += ',,,,,,\n';
+      data.sites.forEach(function(s) {
+        csv += csvEscape(s.site) + ' 合計,,' + s.totalWorkerDays + '\n';
+      });
+      csv += '總工人工作日數,,' + data.grandTotal + '\n';
+      downloadCSV(csv, '子公司月結_' + sub + '_' + month + '.csv');
+      if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
+    })
+    .catch(function() {
+      showToast('匯出失敗', 'error');
+      if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
+    });
+}
+
+function downloadCSV(csv, filename) {
+  var blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
 }
 </script>
 </body>

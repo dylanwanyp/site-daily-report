@@ -209,7 +209,7 @@ function getReport(e, isPost) {
     var d = new Date(rows[j][0]);
     if (isNaN(d.getTime())) continue;
     if (d >= rStart && d <= rEnd)
-      out.push({date: rows[j][0], employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
+      out.push({date: fmtDate(d), employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
   }
   return {records: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd)};
 }
