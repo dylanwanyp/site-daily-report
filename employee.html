@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>地盤日報</title>
+<title>外派工人工作位置記錄</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -89,7 +89,7 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
 </head>
 <body>
 
-<h1>&#128221; 地盤日報</h1>
+<h1>&#128221; 外派工人工作位置記錄</h1>
 
 <!-- Missing days banner -->
 <div id="missingBanner" class="missing-banner">
@@ -102,6 +102,9 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
 <div class="card">
   <label for="employeeSelect">&#128100; 員工姓名</label>
   <select id="employeeSelect"><option value="">— 請選擇 —</option></select>
+  <div id="customEmployeeWrap" class="hidden" style="margin-top:8px">
+    <input type="text" id="customEmployeeInput" placeholder="請輸入員工姓名…">
+  </div>
 </div>
 
 <!-- Step 2: Date -->
@@ -126,7 +129,7 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
 <div class="card">
   <label>&#127963; 工作地盤</label>
   <div id="sitesContainer"></div>
-  <div id="rangeSitesContainer" class="hidden"></div>
+  <div id="rangeSitesContainer"></div>
   <button class="add-btn no-print" onclick="addSiteRow()" id="addSiteBtn">+ 加入地盤</button>
   <div id="totalHoursDisplay" class="total-hours hidden">總工時：8 小時</div>
 </div>
@@ -174,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
   loadData();
   setMinMaxDates();
   addSiteRow(); // start with one site row
-  document.getElementById('rangeSitesContainer').style.display = 'none';
+  document.getElementById('rangeSitesContainer').classList.add('hidden');
 });
 
 function setMinMaxDates() {
@@ -233,7 +236,7 @@ function setDateMode(mode) {
   document.getElementById('singleDateWrap').classList.toggle('hidden', mode !== 'single');
   document.getElementById('rangeDateWrap').classList.toggle('hidden', mode !== 'range');
   document.getElementById('sitesContainer').style.display = (mode === 'single') ? '' : 'none';
-  document.getElementById('rangeSitesContainer').style.display = (mode === 'range') ? '' : 'none';
+  document.getElementById('rangeSitesContainer').classList.toggle('hidden', mode !== 'range');
   document.getElementById('addSiteBtn').style.display = (mode === 'single') ? '' : 'none';
   if (mode === 'range') {
     renderRangeDateBlocks();
@@ -299,9 +302,10 @@ function fillDateFromMissing(dateStr) {
 
 // Get weekday name in Chinese
 function getWeekdayName(dateStr) {
-  var days = ['日', '一', '二', '三', '四', '五', '六'];
-  var d = new Date(dateStr + 'T00:00:00');
-  return '星期' + days[d.getDay()];
+  var days = ['日','一','二','三','四','五','六'];
+  var p = dateStr.split('-');
+  var d = new Date(+p[0], +p[1]-1, +p[2]);
+  return '星期'+days[d.getDay()];
 }
 
 // Render per-date site blocks in range mode
@@ -454,10 +458,12 @@ function getRangeDates() {
   if (!from || !to) return [];
   if (from > to) return [];
   var dates = [];
-  var cur = new Date(from + 'T00:00:00');
-  var end = new Date(to + 'T00:00:00');
+  var p1 = from.split('-'), p2 = to.split('-');
+  var cur = new Date(+p1[0], +p1[1]-1, +p1[2]);
+  var end = new Date(+p2[0], +p2[1]-1, +p2[2]);
   while (cur <= end) {
-    dates.push(cur.toISOString().split('T')[0]);
+    var y = cur.getFullYear(), m = String(cur.getMonth()+1).padStart(2,'0'), d = String(cur.getDate()).padStart(2,'0');
+      dates.push(y+'-'+m+'-'+d);
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
@@ -681,13 +687,15 @@ function getSelectedDates() {
     var from = document.getElementById('rangeFrom').value;
     var to = document.getElementById('rangeTo').value;
     if (!from || !to) return [];
-    if (from > to) { showToast('開始日期不能晚於結束日期', 'error'); return []; }
+    if (from > to) { showToast('開始日期不能晚於結束日期','error'); return []; }
     var dates = [];
-    var cur = new Date(from);
-    var end = new Date(to);
+    var p1 = from.split('-'), p2 = to.split('-');
+    var cur = new Date(+p1[0], +p1[1]-1, +p1[2]);
+    var end = new Date(+p2[0], +p2[1]-1, +p2[2]);
     while (cur <= end) {
-      dates.push(cur.toISOString().split('T')[0]);
-      cur.setDate(cur.getDate() + 1);
+      var y = cur.getFullYear(), m = String(cur.getMonth()+1).padStart(2,'0'), d = String(cur.getDate()).padStart(2,'0');
+      dates.push(y+'-'+m+'-'+d);
+      cur.setDate(cur.getDate()+1);
     }
     return dates;
   }
@@ -800,6 +808,7 @@ function resetForm() {
   // Clear sites (both modes)
   document.getElementById('sitesContainer').innerHTML = '';
   document.getElementById('rangeSitesContainer').innerHTML = '';
+  document.getElementById('rangeSitesContainer').classList.remove('hidden');
   addSiteRow();
   document.getElementById('noteInput').value = '';
   // Keep employee and date selection
