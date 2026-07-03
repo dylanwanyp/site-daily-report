@@ -895,14 +895,23 @@ function exportReportXLSX() {
           rows.push([fmtDisplayDate(r.date), r.site, r.subsidiary || '', h, r.overtimeType || '正常工時', r.weightedHours || h, r.note || '']);
         }
       });
-      rows.push([]);
-      rows.push(['合計工時', Math.round(total * 10) / 10 + ' 小時']);
-      rows.push(['加權合計', Math.round(totalW * 10) / 10 + ' 小時']);
+     rows.push([]);
+     rows.push(['合計工時', Math.round(total * 10) / 10 + ' 小時']);
+     rows.push(['加權合計', Math.round(totalW * 10) / 10 + ' 小時']);
+
+      var metaRows = [];
+      var title = isAll ? '全部員工' : emp;
+      metaRows.push(['外派工人工作記錄系統 — 月結報表']);
+      metaRows.push(['員工：' + title]);
+      metaRows.push(['月份：' + month]);
+      if (!isAll && data.approvalStatus && data.approvalStatus[emp]) {
+        metaRows.push(['✅ 工程部已審批']);
+      }
+      metaRows.push([]); // blank row
 
       var wb = XLSX.utils.book_new();
-      var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+      var ws = XLSX.utils.aoa_to_sheet(metaRows.concat([headers]).concat(rows));
       XLSX.utils.book_append_sheet(wb, ws, '月結');
-      var title = isAll ? '全部員工' : emp;
       XLSX.writeFile(wb, '月結報表_' + title + '_' + month + '.xlsx');
       showToast('Excel 已下載', 'success');
     })
