@@ -568,15 +568,20 @@ function loadApprovalList() {
   if (!month) { showToast('請選擇月份', 'error'); return; }
   var resultDiv = document.getElementById('approvalResult');
   resultDiv.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">&#128259; 載入中…</p>';
+  var _t = Date.now();
 
   // Get all employees + their approval status for this month
-  fetch(GAS_URL + '?action=getEmployees')
+  fetch(GAS_URL + '?action=getEmployees&_t=' + _t)
     .then(function(r) { return r.json(); })
     .then(function(emps) {
       if (!emps || emps.length === 0) { resultDiv.innerHTML = '<p class="empty-msg">尚未加入員工</p>'; return; }
-      fetch(GAS_URL + '?action=getApprovalStatus&password=' + encodeURIComponent(SESSION_PW) + '&month=' + encodeURIComponent(month))
+      fetch(GAS_URL + '?action=getApprovalStatus&_t=' + _t + '&password=' + encodeURIComponent(SESSION_PW) + '&month=' + encodeURIComponent(month))
         .then(function(r) { return r.json(); })
         .then(function(appData) {
+          if (!appData || appData.ok === false) {
+            resultDiv.innerHTML = '<p style="color:var(--danger)">無法載入審批狀態：密碼驗證失敗</p>';
+            return;
+          }
           renderApprovalList(emps, appData.status || {}, month);
         })
         .catch(function() { resultDiv.innerHTML = '<p style="color:var(--danger)">無法載入審批狀態</p>'; });
@@ -615,7 +620,8 @@ function approveEmployee(employee, month) {
     .then(function(data) {
       if (data.success) {
         showToast('已審批 ' + employee + ' (' + month + ')', 'success');
-        loadApprovalList();
+        // Short delay to let GAS flush the write before re-reading
+        setTimeout(loadApprovalList, 300);
       } else {
         showToast(data.error || '審批失敗', 'error');
       }
@@ -628,7 +634,7 @@ function unapproveEmployee(employee, month) {
     .then(function(data) {
       if (data.success) {
         showToast('已取消審批 ' + employee, 'success');
-        loadApprovalList();
+        setTimeout(loadApprovalList, 300);
       } else {
         showToast(data.error || '操作失敗', 'error');
       }
