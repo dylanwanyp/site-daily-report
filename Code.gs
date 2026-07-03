@@ -158,7 +158,7 @@ function approveEmployee(b) {
   var rows = sheet.getDataRange().getValues();
   var foundRow = -1;
   for (var i = 1; i < rows.length; i++) {
-    if (String(rows[i][0]).trim() === emp && String(rows[i][1]).trim() === month) {
+    if (String(rows[i][0]).trim() === emp && fmtMonth(rows[i][1]) === month) {
       foundRow = i + 1;
       break;
     }
@@ -166,7 +166,7 @@ function approveEmployee(b) {
   if (foundRow > 0) {
     sheet.deleteRow(foundRow);
   }
-  sheet.appendRow([emp, month, fmtDateTime(new Date())]);
+  sheet.appendRow([emp, "'" + month, fmtDateTime(new Date())]);
   return {success: true};
 }
 
@@ -178,7 +178,7 @@ function unapproveEmployee(b) {
   if (!sheet) return {success: false, error: 'Approvals sheet not found'};
   var rows = sheet.getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
-    if (String(rows[i][0]).trim() === emp && String(rows[i][1]).trim() === month) {
+    if (String(rows[i][0]).trim() === emp && fmtMonth(rows[i][1]) === month) {
       sheet.deleteRow(i + 1);
       return {success: true};
     }
@@ -194,8 +194,9 @@ function getApprovals(b) {
   if (rows.length < 2) return {approvals: []};
   var out = [];
   for (var i = 1; i < rows.length; i++) {
-    if (month && String(rows[i][1]).trim() !== month) continue;
-    out.push({employee: String(rows[i][0]).trim(), month: String(rows[i][1]).trim(), approvedAt: String(rows[i][2] || '')});
+    var m = fmtMonth(rows[i][1]);
+    if (month && m !== month) continue;
+    out.push({employee: String(rows[i][0]).trim(), month: m, approvedAt: String(rows[i][2] || '')});
   }
   return {approvals: out};
 }
@@ -207,7 +208,7 @@ function getApprovalStatus(b) {
   var rows = sheet.getDataRange().getValues();
   var status = {};
   for (var i = 1; i < rows.length; i++) {
-    var m = String(rows[i][1]).trim();
+    var m = fmtMonth(rows[i][1]);
     var emp = String(rows[i][0]).trim();
     if (month && m !== month) continue;
     status[emp] = {approved: true, month: m, approvedAt: String(rows[i][2] || '')};
@@ -468,7 +469,6 @@ function deleteRow(sn, val) {
     if (String(rows[i][0]).trim() === (val||'').trim()) { s.deleteRow(i+1); return {success: true}; }
   return {error: 'Not found'};
 }
-function json(d) { return ContentService.createTextOutput(JSON.stringify(d)).setMimeType(ContentService.MimeType.JSON); }
 function fmtDate(d) {
   return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
 }
@@ -572,3 +572,8 @@ function getSubsidiaryReport(e, isPost) {
   Object.keys(siteTotals).forEach(function(s) { gt += siteTotals[s]; gtw += siteWeightedTotals[s]; });
   return {subsidiary: subName, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), sites: out, grandTotal: gt, grandTotalWeighted: Math.round(gtw*10)/10};
 }
+function fmtMonth(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, "Asia/Hong_Kong", "yyyy-MM");
+  return String(v).trim();
+}
+function json(d) { return ContentService.createTextOutput(JSON.stringify(d)).setMimeType(ContentService.MimeType.JSON); }

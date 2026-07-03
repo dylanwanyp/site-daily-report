@@ -604,11 +604,11 @@ function renderApprovalList(emps, status, month) {
     html += '<td>' + (isApproved ? '<span style="color:#188038;font-weight:600">&#9989; 已審批</span>' : '<span style="color:#999">— 未審批</span>') + '</td>';
     html += '<td class="actions">';
     if (isApproved) {
-      html += '<button class="btn btn-small btn-outline" onclick="unapproveEmployee(\' + escAttr(empName) + \', \' + month + \')">取消審批</button>';
+      html += '<button class="btn btn-small btn-outline" onclick="unapproveEmployee(\'' + escAttr(empName) + '\', \'' + month + '\')">取消審批</button>';
     } else {
-      html += '<button class="btn btn-small btn-primary" onclick="approveEmployee(\' + escAttr(empName) + \', \' + month + \')">批准</button>';
+      html += '<button class="btn btn-small btn-primary" onclick="approveEmployee(\'' + escAttr(empName) + '\', \'' + month + '\')">批准</button>';
     }
-    html += '<button class="btn btn-small" style="background:#f0f0f0" onclick="viewEmployeeRecords(\' + escAttr(empName) + \', \' + month + \')">查看記錄</button>';
+    html += '<button class="btn btn-small" style="background:#f0f0f0" onclick="viewEmployeeRecords(\'' + escAttr(empName) + '\', \'' + month + '\')">查看記錄</button>';
     html += '</td></tr>';
   });
   html += '</tbody></table>';
