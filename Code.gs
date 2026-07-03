@@ -178,15 +178,28 @@ function getReport(e, isPost) {
   if (!emp) return {records: [], error: 'Employee required'};
   if (!month) return {records: [], error: 'Month required'};
 
+  var parts = month.split('-');
+  var year = parseInt(parts[0], 10);
+  var mon = parseInt(parts[1], 10);
+  if (emp === 'all') {
+    var rStart = new Date(year, mon - 1, 1);
+    var rEnd = new Date(year, mon, 0, 23, 59, 59);
+    var rows = readSheet(RECS);
+    var out = [];
+    for (var j = 0; j < rows.length; j++) {
+      var d = new Date(rows[j][0]);
+      if (isNaN(d.getTime())) continue;
+      if (d >= rStart && d <= rEnd)
+        out.push({date: fmtDate(d), employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
+    }
+    return {records: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), mode: 'all'};
+  }
   var emps = readSheet(EMPLOYEES);
   var startDay = 1;
   for (var i = 0; i < emps.length; i++)
     if (String(emps[i][0]).trim() === emp) { startDay = Number(emps[i][1]) || 1; break; }
 
-  var parts = month.split('-');
-  var year = parseInt(parts[0], 10);
-  var mon = parseInt(parts[1], 10);
-  var rStart, rEnd;
+ var rStart, rEnd;
   if (startDay === 1) {
     rStart = new Date(year, mon - 1, 1);
     rEnd = new Date(year, mon, 0, 23, 59, 59);
@@ -311,10 +324,43 @@ function getSubsidiaryReport(e, isPost) {
   var mon = parseInt(parts[1], 10);
   var rStart = new Date(year, mon - 1, 1);
   var rEnd = new Date(year, mon, 0, 23, 59, 59);
-  var rows = readSheet(RECS);
+ var rows = readSheet(RECS);
+  if (subName === 'all') {
+    var allData = {};
+    for (var j = 0; j < rows.length; j++) {
+      var d = new Date(rows[j][0]);
+      if (isNaN(d.getTime())) continue;
+      if (d < rStart || d > rEnd) continue;
+      var emp = String(rows[j][1]).trim();
+      var site = String(rows[j][2]).trim();
+      var sub = String(rows[j][3] || '').trim();
+      if (!sub) continue;
+      if (!allData[sub]) allData[sub] = {};
+      if (!allData[sub][site]) allData[sub][site] = {};
+      if (!allData[sub][site][emp]) allData[sub][site][emp] = 0;
+      allData[sub][site][emp]++;
+    }
+    var out = [];
+    Object.keys(allData).sort().forEach(function(sn) {
+      var siteList = [];
+      var subTotal = 0;
+      Object.keys(allData[sn]).sort().forEach(function(siteName) {
+        var wl = [];
+        Object.keys(allData[sn][siteName]).sort().forEach(function(en) {
+          wl.push({name: en, days: allData[sn][siteName][en]});
+        });
+        var sd = 0;
+        Object.keys(allData[sn][siteName]).forEach(function(k) { sd += allData[sn][siteName][k]; });
+        siteList.push({site: siteName, totalWorkerDays: sd, workers: wl});
+        subTotal += sd;
+      });
+      out.push({subsidiary: sn, sites: siteList, totalWorkerDays: subTotal});
+    });
+    return {mode: 'all', subsidiaries: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd)};
+  }
   var siteEmpDays = {};
   var siteTotals = {};
-  for (var j = 0; j < rows.length; j++) {
+ for (var j = 0; j < rows.length; j++) {
     if (String(rows[j][3] || '').trim() !== subName) continue;
     var d = new Date(rows[j][0]);
     if (isNaN(d.getTime())) continue;
