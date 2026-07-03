@@ -1,6 +1,6 @@
 /**
  * 外勤工程地盤日報系統 — Google Apps Script Backend
- * Last amended: 2026-07-03 (v15 - fixed ds() Date check)
+ * Last amended: 2026-07-03 (v16 - fixed getReport approval fmtMonth match)
  * Deploy: Execute as me → Access: Anyone (even anonymous)
  */
 
