@@ -1,6 +1,6 @@
 /**
  * 外勤工程地盤日報系統 — Google Apps Script Backend
- * Last amended: 2026-07-03
+ * Last amended: 2026-07-03 (v15 - fixed ds() Date check)
  * Deploy: Execute as me → Access: Anyone (even anonymous)
  */
 
@@ -19,10 +19,11 @@ function doGet(e) { return route(e, false); }
 function debugGetAllRecords() {
   var rows = readSheet(RECS);
   return {total: rows.length, records: rows.slice(0, 50).map(function(r) {
+    var dv = r[0];
     return {
-      date: String(r[0] || "").substring(0,20),
-      dateIsDate: r[0] instanceof Date,
-      dateType: typeof r[0],
+      date: String(dv || "").substring(0,20),
+      dateIsDate: dv && typeof dv.getMonth === 'function',
+      dateType: typeof dv,
       employee: String(r[1] || ""),
       site: String(r[2] || ""),
       subsidiary: String(r[3] || ""),
@@ -475,7 +476,7 @@ function fmtDateTime(d) {
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
 }
 function ds(v) {
-  if (v instanceof Date) return fmtDate(v);
+  if (v && typeof v.getMonth === 'function') return fmtDate(v);
   return String(v || '').substring(0, 10);
 }
 
