@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>管理後台 — 外派工人工作記錄系統</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -337,6 +338,10 @@ function updateReportEmployeeDropdown(emps) {
     opt.textContent = e.name;
     sel.appendChild(opt);
   });
+  var allOpt = document.createElement('option');
+  allOpt.value = 'all';
+  allOpt.textContent = '全部員工';
+  sel.appendChild(allOpt);
 }
 
 function addEmployee() {
@@ -392,6 +397,10 @@ function loadSubsidiaries() {
         opt.textContent = s.name;
         subSel.appendChild(opt);
       });
+      var allOpt2 = document.createElement('option');
+      allOpt2.value = 'all';
+      allOpt2.textContent = '全部子公司';
+      subSel.appendChild(allOpt2);
     })
     .catch(function() { showToast('無法載入子公司資料', 'error'); });
 }
@@ -449,31 +458,46 @@ function loadReport() {
 function renderReport(data, emp, month) {
   var div = document.getElementById('reportResult');
   var records = data.records || [];
+  var mode = data.mode || '';
   var rangeStart = data.rangeStart || '';
   var rangeEnd = data.rangeEnd || '';
 
   var html = '<div class="report-header">';
-  html += '<h2>月結報表 — ' + esc(emp) + '</h2>';
+  var title = (emp === 'all') ? '全部員工' : emp;
+  html += '<h2>月結報表 — ' + esc(title) + '</h2>';
   html += '<p>月份：' + month + ' (' + esc(rangeStart) + ' ~ ' + esc(rangeEnd) + ')</p>';
   html += '<p>共 ' + records.length + ' 條記錄</p>';
   html += '</div>';
 
   if (records.length === 0) {
     html += '<p class="empty-msg">本月無記錄</p>';
+  } else if (mode === 'all') {
+    html += '<table><thead><tr><th>日期</th><th>員工姓名</th><th>地盤名稱</th><th>子公司</th><th>工時</th><th>備註</th></tr></thead><tbody>';
+    var totalHours = 0;
+    records.forEach(function(r) {
+      var h = parseFloat(r.hours) || 0;
+      totalHours += h;
+      html += '<tr><td>' + fmtDisplayDate(esc(r.date)) + '</td><td>' + esc(r.employee) + '</td><td>' + esc(r.site) + '</td><td>' + esc(r.subsidiary || '-') + '</td><td>' + h + '</td><td>' + esc(r.note || '') + '</td></tr>';
+    });
+    html += '<tr class="total-row"><td colspan="5">合計</td><td>' + Math.round(totalHours * 10) / 10 + ' 小時</td></tr>';
+    html += '</tbody></table>';
   } else {
     html += '<table><thead><tr><th>日期</th><th>地盤名稱</th><th>子公司</th><th>工時</th><th>備註</th></tr></thead><tbody>';
     var totalHours = 0;
     records.forEach(function(r) {
       var h = parseFloat(r.hours) || 0;
       totalHours += h;
-      html += '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.site) + '</td><td>' + esc(r.subsidiary || '-') + '</td><td>' + h + '</td><td>' + esc(r.note || '') + '</td></tr>';
+      html += '<tr><td>' + fmtDisplayDate(esc(r.date)) + '</td><td>' + esc(r.site) + '</td><td>' + esc(r.subsidiary || '-') + '</td><td>' + h + '</td><td>' + esc(r.note || '') + '</td></tr>';
     });
-    html += '<tr class="total-row"><td colspan="3">合計</td><td>' + Math.round(totalHours * 10) / 10 + ' 小時</td><td></td></tr>';
+    html += '<tr class="total-row"><td colspan="3">合計</td><td>' + Math.round(totalHours * 10) / 10 + ' 小時</td></tr>';
     html += '</tbody></table>';
   }
 
-  html += '<button class="btn btn-excel no-print" onclick="exportReportCSV()">&#128196; 匯出 CSV</button>';
-  html += '<button class="btn btn-print no-print" onclick="window.print()">&#128424; 打印</button>';
+  html += '<div class="no-print" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">';
+  html += '<button class="btn btn-excel" onclick="exportReportCSV()">&#128196; 匯出 CSV</button>';
+  html += '<button class="btn btn-excel" onclick="exportReportXLSX()">&#128211; 匯出 Excel</button>';
+  html += '</div>';
+  html += '<button class="btn btn-print no-print" onclick="window.print()" style="margin-top:12px">&#128424; 打印</button>';
   div.innerHTML = html;
 }
 
@@ -483,7 +507,16 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function escAttr(s) {
+
   return esc(s || '').replace(/'/g,'&#39;');
+}
+
+// ── Date Format Helper ──
+function fmtDisplayDate(s) {
+  if (!s) return '';
+  if (s.indexOf('T') >= 0) return s.split('T')[0];
+  if (s.indexOf(' ') >= 0) return s.split(' ')[0];
+  return s;
 }
 
 // ── Subsidiary Report ──
@@ -492,6 +525,7 @@ function loadSubsidiaryReport() {
   var month = document.getElementById('subReportMonth').value;
   if (!sub) { showToast('請選擇子公司', 'error'); return; }
   if (!month) { showToast('請選擇月份', 'error'); return; }
+  if (sub === 'all' && !confirm('確定為全部子公司產生月結報表？\n（這可能包含大量資料）')) return;
   var resultDiv = document.getElementById('subReportResult');
   resultDiv.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">&#128259; 載入中…</p>';
   gasPost('getSubsidiaryReport', {password: SESSION_PW, subsidiary: sub, month: month})
@@ -507,6 +541,50 @@ function loadSubsidiaryReport() {
 
 function renderSubsidiaryReport(data) {
   var div = document.getElementById('subReportResult');
+
+  if (data.mode === 'all') {
+    // All subsidiaries mode
+    var html = '<div class="report-header">';
+    html += '<h2>&#127970; 全部子公司月結報表</h2>';
+    html += '<p>月份：' + esc(data.rangeStart) + ' ~ ' + esc(data.rangeEnd) + '</p>';
+    html += '<p>共 ' + data.subsidiaries.length + ' 個子公司</p>';
+    html += '</div>';
+
+    if (!data.subsidiaries || data.subsidiaries.length === 0) {
+      html += '<p class="empty-msg">該月無記錄</p>';
+    } else {
+      data.subsidiaries.forEach(function(sub) {
+        html += '<div style="margin-top:16px"><h3>&#127970; ' + esc(sub.subsidiary) + '</h3>';
+        html += '<p style="font-size:13px;color:var(--muted)">共 ' + sub.sites.length + ' 個地盤</p>';
+        sub.sites.forEach(function(s) {
+          html += '<div style="margin-left:12px;margin-top:8px"><h4>&#127963; ' + esc(s.site) + '</h4>';
+          html += '<table><thead><tr><th>員工姓名</th><th>工作日數</th></tr></thead><tbody>';
+          s.workers.forEach(function(w) {
+            html += '<tr><td>' + esc(w.name) + '</td><td>' + w.days + ' 天</td></tr>';
+          });
+          html += '<tr class="total-row"><td>地盤合計</td><td>' + s.totalWorkerDays + ' 工人日</td></tr>';
+          html += '</tbody></table></div>';
+        });
+        html += '<div style="margin-top:8px;padding:8px;background:#e8f5e9;border-radius:4px;font-weight:600">子公司小計：' + sub.totalWorkerDays + ' 工人日</div>';
+        html += '</div>';
+      });
+      // Grand total
+      var grandTotal = 0;
+      data.subsidiaries.forEach(function(s) { grandTotal += s.totalWorkerDays; });
+      html += '<div style="margin-top:16px;padding:12px;background:#e8f5e9;border-radius:4px;font-weight:600;font-size:16px">';
+      html += '&#9888; 總工人工作日數：' + grandTotal + ' 日';
+      html += '</div>';
+    }
+    html += '<div class="no-print" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">';
+    html += '<button class="btn btn-excel" onclick="exportSubsidiaryCSV()">&#128196; 匯出 CSV</button>';
+    html += '<button class="btn btn-excel" onclick="exportSubsidiaryXLSX()">&#128211; 匯出 Excel</button>';
+    html += '</div>';
+    html += '<button class="btn btn-print no-print" onclick="window.print()" style="margin-top:16px">&#128424; 打印</button>';
+    div.innerHTML = html;
+    return;
+  }
+
+  // Single subsidiary mode
   var sites = data.sites || [];
   var html = '<div class="report-header">';
   html += '<h2>&#127970; 子公司月結 — ' + esc(data.subsidiary) + '</h2>';
@@ -529,7 +607,10 @@ function renderSubsidiaryReport(data) {
     html += '總工人工作日數：' + data.grandTotal + ' 日';
     html += '</div>';
   }
-  html += '<button class="btn btn-excel no-print" onclick="exportSubsidiaryCSV()">&#128196; 匯出 CSV</button>';
+  html += '<div class="no-print" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">';
+  html += '<button class="btn btn-excel" onclick="exportSubsidiaryCSV()">&#128196; 匯出 CSV</button>';
+  html += '<button class="btn btn-excel" onclick="exportSubsidiaryXLSX()">&#128211; 匯出 Excel</button>';
+  html += '</div>';
   html += '<button class="btn btn-print no-print" onclick="window.print()" style="margin-top:16px">&#128424; 打印</button>';
   div.innerHTML = html;
 }
@@ -565,7 +646,7 @@ function exportReportCSV() {
       data.records.forEach(function(r) {
         var h = parseFloat(r.hours) || 0;
         total += h;
-        csv += [csvEscape(r.date), csvEscape(r.employee), csvEscape(r.site), csvEscape(r.subsidiary), h, csvEscape(r.note)].join(',') + '\n';
+        csv += [csvEscape(fmtDisplayDate(r.date)), csvEscape(r.employee), csvEscape(r.site), csvEscape(r.subsidiary || ''), h, csvEscape(r.note || '')].join(',') + '\n';
       });
       csv += ',,,,,\n';
       csv += '合計工時,,,, ' + Math.round(total * 10) / 10 + ' ,\n';
@@ -581,38 +662,157 @@ function exportReportCSV() {
 function exportSubsidiaryCSV() {
   var sub = document.getElementById('subReportSubsidiary').value;
   var month = document.getElementById('subReportMonth').value;
-  if (!sub) { showToast('請先產生報表再匯出', 'error'); return; }
+  if (!sub) { showToast('請選擇子公司', 'error'); return; }
   if (!month) { showToast('請先產生報表再匯出', 'error'); return; }
   
   var btn = document.querySelector('.tab-content:not(.hidden) .btn-excel');
   if (btn) { btn.textContent = '⏳ 生成中…'; btn.disabled = true; }
+  var subIsAll = (sub === 'all');
   
   gasPost('getSubsidiaryReport', {password: SESSION_PW, subsidiary: sub, month: month})
     .then(function(data) {
-      if (!data || data.error || !data.sites) {
+      if (!data || data.error || (!data.sites && !data.subsidiaries)) {
         showToast('無資料可匯出', 'error');
         if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
         return;
       }
       var csv = '\uFEFF';
-      csv += '子公司:' + csvEscape(data.subsidiary) + ',月份:' + csvEscape(data.rangeStart) + ' ~ ' + csvEscape(data.rangeEnd) + '\n';
-      csv += '地盤名稱,員工姓名,工作日數\n';
-      data.sites.forEach(function(s) {
-        s.workers.forEach(function(w) {
-          csv += csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.days + '\n';
+      
+      if (data.mode === 'all') {
+        var grandTotal = 0;
+        csv += '月份:' + csvEscape(data.rangeStart) + ' ~ ' + csvEscape(data.rangeEnd) + '\n';
+        csv += '子公司,地盤名稱,員工姓名,工作日數\n';
+        data.subsidiaries.forEach(function(subData) {
+          subData.sites.forEach(function(s) {
+            s.workers.forEach(function(w) {
+              csv += csvEscape(subData.subsidiary) + ',' + csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.days + '\n';
+            });
+          });
+          grandTotal += subData.totalWorkerDays;
         });
-      });
-      csv += ',,,,,,\n';
-      data.sites.forEach(function(s) {
-        csv += csvEscape(s.site) + ' 合計,,' + s.totalWorkerDays + '\n';
-      });
-      csv += '總工人工作日數,,' + data.grandTotal + '\n';
-      downloadCSV(csv, '子公司月結_' + sub + '_' + month + '.csv');
+        csv += ',,,,,\n';
+        csv += '總工人工作日數,,, ' + grandTotal + '\n';
+        downloadCSV(csv, '全部子公司月結_' + month + '.csv');
+      } else {
+        csv += '子公司:' + csvEscape(data.subsidiary) + ',月份:' + csvEscape(data.rangeStart) + ' ~ ' + csvEscape(data.rangeEnd) + '\n';
+        csv += '地盤名稱,員工姓名,工作日數\n';
+        data.sites.forEach(function(s) {
+          s.workers.forEach(function(w) {
+            csv += csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.days + '\n';
+          });
+        });
+        csv += ',,,,,\n';
+        data.sites.forEach(function(s) {
+          csv += csvEscape(s.site) + ' 合計,,' + s.totalWorkerDays + '\n';
+        });
+        csv += '總工人工作日數,,' + data.grandTotal + '\n';
+        downloadCSV(csv, '子公司月結_' + sub + '_' + month + '.csv');
+      }
+      
       if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
     })
     .catch(function() {
       showToast('匯出失敗', 'error');
       if (btn) { btn.innerHTML = '&#128196; 匯出 CSV'; btn.disabled = false; }
+    });
+}
+
+
+// ── XLSX Export ──
+function exportReportXLSX() {
+  var emp = document.getElementById('reportEmployee').value;
+  var month = document.getElementById('reportMonth').value;
+  if (!emp || !month) { showToast('請先產生報表再匯出', 'error'); return; }
+  if (typeof XLSX === 'undefined') { showToast('Excel 匯出庫載入中，請稍後重試', 'error'); return; }
+
+  gasPost('getRecordsForReport', {password: SESSION_PW, employee: emp, month: month})
+    .then(function(data) {
+      if (!data || data.error || !data.records) {
+        showToast('無資料可匯出', 'error');
+        return;
+      }
+      var isAll = (emp === 'all');
+      var headers = isAll ? ['日期','員工姓名','地盤名稱','子公司','工時(小時)','備註'] : ['日期','地盤名稱','子公司','工時(小時)','備註'];
+      var rows = [];
+      var total = 0;
+      data.records.forEach(function(r) {
+        var h = parseFloat(r.hours) || 0;
+        total += h;
+        if (isAll) {
+          rows.push([fmtDisplayDate(r.date), r.employee, r.site, r.subsidiary || '', h, r.note || '']);
+        } else {
+          rows.push([fmtDisplayDate(r.date), r.site, r.subsidiary || '', h, r.note || '']);
+        }
+      });
+      rows.push([]);
+      rows.push(['合計工時', Math.round(total * 10) / 10 + ' 小時']);
+
+      var wb = XLSX.utils.book_new();
+      var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+      XLSX.utils.book_append_sheet(wb, ws, '月結');
+      var title = isAll ? '全部員工' : emp;
+      XLSX.writeFile(wb, '月結報表_' + title + '_' + month + '.xlsx');
+      showToast('Excel 已下載', 'success');
+    })
+    .catch(function() { showToast('匯出失敗', 'error'); });
+}
+
+function exportSubsidiaryXLSX() {
+  var sub = document.getElementById('subReportSubsidiary').value;
+  var month = document.getElementById('subReportMonth').value;
+  if (!sub || !month) { showToast('請先產生報表再匯出', 'error'); return; }
+  if (typeof XLSX === 'undefined') { showToast('Excel 匯出庫載入中，請稍後重試', 'error'); return; }
+
+  var subIsAll = (sub === 'all');
+
+  gasPost('getSubsidiaryReport', {password: SESSION_PW, subsidiary: sub, month: month})
+    .then(function(data) {
+      if (!data || data.error || (!data.sites && !data.subsidiaries)) {
+        showToast('無資料可匯出', 'error');
+        return;
+      }
+
+      if (subIsAll && data.mode === 'all') {
+        var wb = XLSX.utils.book_new();
+        data.subsidiaries.forEach(function(subData) {
+          var headers = ['地盤名稱','員工姓名','工作日數'];
+          var rows = [];
+          subData.sites.forEach(function(s) {
+            s.workers.forEach(function(w) {
+              rows.push([s.site, w.name, w.days]);
+            });
+          });
+          rows.push([]);
+          rows.push(['地盤合計', subData.totalWorkerDays]);
+          
+          var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+          var sheetName = subData.subsidiary.substring(0, 31);
+          XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        });
+        var wsTotal = XLSX.utils.aoa_to_sheet([['子公司','總工人日數']].concat(
+          data.subsidiaries.map(function(s) { return [s.subsidiary, s.totalWorkerDays]; })
+        ));
+        XLSX.utils.book_append_sheet(wb, wsTotal, '總計');
+        XLSX.writeFile(wb, '全部子公司月結_' + month + '.xlsx');
+      } else {
+        var headers = ['地盤名稱','員工姓名','工作日數'];
+        var rows = [];
+        data.sites.forEach(function(s) {
+          s.workers.forEach(function(w) {
+            rows.push([s.site, w.name, w.days]);
+          });
+        });
+        rows.push([]);
+        rows.push(['地盤合計', data.grandTotal + ' 工人日']);
+        var wb = XLSX.utils.book_new();
+        var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+        XLSX.utils.book_append_sheet(wb, ws, '月結');
+        XLSX.writeFile(wb, '子公司月結_' + sub + '_' + month + '.xlsx');
+      }
+      showToast('Excel 已下載', 'success');
+    })
+    .catch(function() {
+      showToast('匯出失敗', 'error');
     });
 }
 
