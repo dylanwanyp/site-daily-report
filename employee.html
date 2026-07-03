@@ -180,7 +180,6 @@ var pendingRecords = [];
 document.addEventListener('DOMContentLoaded', function() {
   loadData();
   setMinMaxDates();
-  addSiteRow(); // start with one site row
   document.getElementById('rangeSitesContainer').classList.add('hidden');
 });
 
@@ -201,6 +200,9 @@ function loadData() {
         employees = d.employees || [];
         subsidiaries = d.subsidiaries || [];
         populateEmployees();
+        // Start with one site row now that sites are loaded
+        document.getElementById('sitesContainer').innerHTML = '';
+        addSiteRow();
         showLoading(false);
       } else {
         // Fallback: getAllData not supported (old deployment)
@@ -219,6 +221,9 @@ function loadIndividualData() {
   var p3 = fetch(GAS_URL + '?action=getSubsidiaries').then(function(r) { return r.json(); }).then(function(d) { subsidiaries = d; }).catch(function() { subsidiaries = []; });
   Promise.all([p1, p2, p3]).then(function() {
     populateEmployees();
+    // Start with one site row now that sites are loaded
+    document.getElementById('sitesContainer').innerHTML = '';
+    addSiteRow();
     showLoading(false);
   }).catch(function() {
     showToast('無法載入資料，請檢查網絡或 GAS 設定', 'error');
