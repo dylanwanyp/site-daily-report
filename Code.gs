@@ -14,6 +14,24 @@ var APPR = 'approvals';
 
 // ── Entry Points ──
 function doGet(e) { return route(e, false); }
+
+// ── Debug endpoint (no auth) ──
+function debugGetAllRecords() {
+  var rows = readSheet(RECS);
+  return {total: rows.length, records: rows.slice(0, 50).map(function(r) {
+    return {
+      date: String(r[0] || "").substring(0,20),
+      dateIsDate: r[0] instanceof Date,
+      dateType: typeof r[0],
+      employee: String(r[1] || ""),
+      site: String(r[2] || ""),
+      subsidiary: String(r[3] || ""),
+      hours: r[4],
+      note: String(r[5] || ""),
+      overtimeType: String(r.length > 7 ? r[7] : "")
+    };
+  })};
+}
 function doPost(e) { return route(e, true); }
 
 function route(e, isPost) {
@@ -31,6 +49,8 @@ function routeAction(action, e, isPost) {
     case 'getEmployees':      return json(getEmployees());
     case 'getSubsidiaries':   return json(getSubs());
     case 'getAllData':        return json({sites: getSites(), employees: getEmployees(), subsidiaries: getSubs()});
+    case 'debugGetAllRecords': return json(debugGetAllRecords());
+
     case 'checkMissing':      return json(checkMissingDays(e));
     case 'getExistingDates':  return json(getExistingDates(e));
     case 'submitRecords':     return json(handleSubmit(isPost ? JSON.parse(e.postData.contents) : JSON.parse(e.parameter.data || '[]')));
