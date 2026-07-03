@@ -241,12 +241,19 @@ function loadAllData() {
   fetch(GAS_URL + '?action=getAllData')
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      renderSites(d.sites || [], d.subsidiaries || []);
-      renderEmployees(d.employees || []);
-      renderSubsidiaries(d.subsidiaries || []);
+      if (d.sites) {
+        renderSites(d.sites || [], d.subsidiaries || []);
+        renderEmployees(d.employees || []);
+        renderSubsidiaries(d.subsidiaries || []);
+      } else {
+        // getAllData not supported (old deployment)
+        loadSites();
+        loadEmployees();
+        loadSubsidiaries();
+      }
     })
     .catch(function() {
-      // Fallback to individual loads
+      // Network error or old deployment - fallback to individual loads
       loadSites();
       loadEmployees();
       loadSubsidiaries();
@@ -323,9 +330,9 @@ function deleteSite(name) {
 
 // ── Employees ──
 function loadEmployees() {
-  fetch(GAS_URL + '?action=getAllData')
+  fetch(GAS_URL + '?action=getEmployees')
     .then(function(r) { return r.json(); })
-    .then(function(d) { renderEmployees(d.employees || []); })
+    .then(function(data) { renderEmployees(data || []); })
     .catch(function() { showToast('無法載入員工資料', 'error'); });
 }
 
@@ -390,9 +397,9 @@ function deleteEmployee(name) {
 
 // ── Subsidiaries ──
 function loadSubsidiaries() {
-  fetch(GAS_URL + '?action=getAllData')
+  fetch(GAS_URL + '?action=getSubsidiaries')
     .then(function(r) { return r.json(); })
-    .then(function(d) { renderSubsidiaries(d.subsidiaries || []); })
+    .then(function(data) { renderSubsidiaries(data || []); })
     .catch(function() { showToast('無法載入子公司資料', 'error'); });
 }
 

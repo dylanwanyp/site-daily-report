@@ -196,16 +196,34 @@ function loadData() {
   fetch(GAS_URL + '?action=getAllData')
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      sites = d.sites || [];
-      employees = d.employees || [];
-      subsidiaries = d.subsidiaries || [];
-      populateEmployees();
-      showLoading(false);
+      if (d.sites) {
+        sites = d.sites || [];
+        employees = d.employees || [];
+        subsidiaries = d.subsidiaries || [];
+        populateEmployees();
+        showLoading(false);
+      } else {
+        // Fallback: getAllData not supported (old deployment)
+        loadIndividualData();
+      }
     })
     .catch(function() {
-      showToast('無法載入資料，請檢查網絡或 GAS 設定', 'error');
-      showLoading(false);
+      // Fallback: network error or old deployment
+      loadIndividualData();
     });
+}
+
+function loadIndividualData() {
+  var p1 = fetch(GAS_URL + '?action=getSites').then(function(r) { return r.json(); }).then(function(d) { sites = d; }).catch(function() { sites = []; });
+  var p2 = fetch(GAS_URL + '?action=getEmployees').then(function(r) { return r.json(); }).then(function(d) { employees = d; }).catch(function() { employees = []; });
+  var p3 = fetch(GAS_URL + '?action=getSubsidiaries').then(function(r) { return r.json(); }).then(function(d) { subsidiaries = d; }).catch(function() { subsidiaries = []; });
+  Promise.all([p1, p2, p3]).then(function() {
+    populateEmployees();
+    showLoading(false);
+  }).catch(function() {
+    showToast('無法載入資料，請檢查網絡或 GAS 設定', 'error');
+    showLoading(false);
+  });
 }
 
 function populateEmployees() {
