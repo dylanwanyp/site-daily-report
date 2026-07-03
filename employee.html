@@ -87,6 +87,11 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
 .date-block .total-hours{font-size:var(--fs-base);font-weight:600;color:var(--primary)}
 .date-hint{font-size:var(--fs-sm);color:var(--muted);margin-top:4px;display:block;text-align:center}
 .date-input-wrap{position:relative}
+
+.overtime-wrap{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.overtime-select{font-size:var(--fs-sm);padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none;min-width:90px}
+.overtime-label{font-size:var(--fs-sm);color:var(--muted)}
+.overtime-auto-notice{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:4px 8px;font-size:var(--fs-sm);color:#2e7d32;margin-bottom:4px;display:none}
 </style>
 </head>
 <body>
@@ -135,7 +140,7 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
   <div id="sitesContainer"></div>
   <div id="rangeSitesContainer"></div>
   <button class="add-btn no-print" onclick="addSiteRow()" id="addSiteBtn">+ 加入地盤</button>
-  <div id="totalHoursDisplay" class="total-hours hidden">總工時：8 小時</div>
+  <div id="totalHoursDisplay" class="total-hours hidden">總工時：9 小時</div>
 </div>
 
 <!-- Note -->
@@ -431,9 +436,9 @@ function addSiteRowToDateBlock(block, siteName, hours) {
   var hrInput = document.createElement('input');
   hrInput.type = 'number';
   hrInput.min = 1;
-  hrInput.max = 12;
+  hrInput.max = 18;
   hrInput.step = 0.5;
-  hrInput.value = hours || 8;
+  hrInput.value = hours || 9;
   hrInput.className = 'hours-input';
   hrInput.onchange = function() { recalcRangeDateBlock(block); };
   hrInput.oninput = function() {
@@ -455,10 +460,23 @@ function addSiteRowToDateBlock(block, siteName, hours) {
     recalcRangeDateBlock(block);
   };
 
-  row.appendChild(sel);
-  row.appendChild(otherInput);
-  row.appendChild(otherBtn);
-  row.appendChild(hoursWrap);
+  // Overtime type
+  var otWrap = document.createElement('div');
+  otWrap.className = 'overtime-wrap';
+  var otSel = document.createElement('select');
+  otSel.className = 'overtime-select';
+  otSel.innerHTML = '<option value="正常工時">正常工時</option><option value="晚間加班">晚間加班</option><option value="深夜加班">深夜加班</option>';
+  var otLabel = document.createElement('span');
+  otLabel.className = 'overtime-label';
+  otLabel.textContent = '加班';
+  otWrap.appendChild(otLabel);
+  otWrap.appendChild(otSel);
+  // Auto-split notice
+  var otNotice = document.createElement('div');
+  otNotice.className = 'overtime-auto-notice';
+  otNotice.textContent = '⏬ 工時超過 9小時，已自動拆分為正常工時+晚間加班';
+  row.appendChild(otNotice);
+  row.appendChild(otWrap);
   row.appendChild(delBtn);
   container.appendChild(row);
   recalcRangeDateBlock(block);
@@ -473,7 +491,7 @@ function recalcRangeDateBlock(block) {
     totalDiv.style.display = 'none';
     return;
   }
-  var hoursPerSite = 8 / n;
+  var hoursPerSite = 9 / n;
   var inputs = block.querySelectorAll('.hours-input');
   var anyManual = false;
   inputs.forEach(function(inp) {
@@ -561,9 +579,9 @@ function addSiteRow(siteName, hours) {
   var hrInput = document.createElement('input');
   hrInput.type = 'number';
   hrInput.min = 1;
-  hrInput.max = 12;
+  hrInput.max = 18;
   hrInput.step = 0.5;
-  hrInput.value = hours || 8;
+  hrInput.value = hours || 9;
   hrInput.className = 'hours-input';
   hrInput.onchange = recalcHours;
   var unit = document.createElement('span');
@@ -583,10 +601,23 @@ function addSiteRow(siteName, hours) {
     updateTotalSites();
   };
 
-  row.appendChild(sel);
-  row.appendChild(otherInput);
-  row.appendChild(otherBtn);
-  row.appendChild(hoursWrap);
+  // Overtime type
+  var otWrap = document.createElement('div');
+  otWrap.className = 'overtime-wrap';
+  var otSel = document.createElement('select');
+  otSel.className = 'overtime-select';
+  otSel.innerHTML = '<option value="正常工時">正常工時</option><option value="晚間加班">晚間加班</option><option value="深夜加班">深夜加班</option>';
+  var otLabel = document.createElement('span');
+  otLabel.className = 'overtime-label';
+  otLabel.textContent = '加班';
+  otWrap.appendChild(otLabel);
+  otWrap.appendChild(otSel);
+  // Auto-split notice
+  var otNotice = document.createElement('div');
+  otNotice.className = 'overtime-auto-notice';
+  otNotice.textContent = '⏬ 工時超過 9小時，已自動拆分為正常工時+晚間加班';
+  row.appendChild(otNotice);
+  row.appendChild(otWrap);
   row.appendChild(delBtn);
   container.appendChild(row);
   recalcHours();
@@ -607,7 +638,7 @@ function recalcHours() {
     document.getElementById('totalHoursDisplay').classList.add('hidden');
     return;
   }
-  var hoursPerSite = 8 / n;
+  var hoursPerSite = 9 / n;
   var inputs = document.querySelectorAll('.hours-input');
   var manuallyChanged = false;
   inputs.forEach(function(inp) {
@@ -673,7 +704,8 @@ function collectRecords() {
           site: s.name,
           subsidiary: s.subsidiary || '',
           hours: s.hours,
-          note: note
+          note: note,
+          overtimeType: s.overtimeType || '正常工時'
         });
       });
     });
@@ -701,13 +733,15 @@ function collectRecords() {
         }
         if (name) {
           hasAnySite = true;
+          var otSel = row.querySelector('.overtime-select');
           records.push({
             date: date,
             employee: emp,
             site: name,
             subsidiary: subsidiary || '',
             hours: parseFloat(hrInput ? hrInput.value : 0) || 0,
-            note: note
+            note: note,
+            overtimeType: otSel ? otSel.value : '正常工時'
           });
         }
       });
@@ -739,6 +773,77 @@ function getSelectedDates() {
   }
 }
 
+
+// ── Auto-Split Overtime Logic ──
+// When hours > 9 on a site row, split into 9hr normal + rest as evening OT
+function checkAutoSplit(row, block) {
+  var hrInput = row.querySelector('.hours-input');
+  var otSel = row.querySelector('.overtime-select');
+  var otNotice = row.querySelector('.overtime-auto-notice');
+  var sel = row.querySelector('.site-select');
+  var other = row.querySelector('.other-input');
+  if (!hrInput) return;
+  var h = parseFloat(hrInput.value) || 0;
+  if (h > 9) {
+    // Get current site name
+    var siteName = '';
+    if (sel && sel.classList.contains('hidden')) {
+      siteName = other ? other.value.trim() : '';
+    } else if (sel) {
+      siteName = sel.value;
+    }
+    if (!siteName) return;
+    // Split: keep 9hr normal on current row
+    hrInput.value = '9';
+    if (otSel) otSel.value = '正常工時';
+    if (otNotice) otNotice.style.display = 'block';
+    // Add new row for remaining hours as evening OT
+    var remaining = h - 9;
+    if (remaining > 0) {
+      if (block) {
+        // Range mode
+        addSiteRowToDateBlock(block, siteName, Math.round(remaining * 10) / 10);
+        var newRows = block.querySelectorAll('.site-row');
+        var newRow = newRows[newRows.length - 1];
+        var newOt = newRow.querySelector('.overtime-select');
+        var newNotice = newRow.querySelector('.overtime-auto-notice');
+        var newHr = newRow.querySelector('.hours-input');
+        if (newOt) newOt.value = '晚間加班';
+        if (newNotice) newNotice.style.display = 'block';
+        if (newHr) newHr.dataset.manual = 'true';
+        recalcRangeDateBlock(block);
+      } else {
+        // Single mode
+        addSiteRow(siteName, Math.round(remaining * 10) / 10);
+        var allRows = document.querySelectorAll('#sitesContainer .site-row');
+        var newRow = allRows[allRows.length - 1];
+        var newOt = newRow.querySelector('.overtime-select');
+        var newNotice = newRow.querySelector('.overtime-auto-notice');
+        var newHr = newRow.querySelector('.hours-input');
+        if (newOt) newOt.value = '晚間加班';
+        if (newNotice) newNotice.style.display = 'block';
+        if (newHr) newHr.dataset.manual = 'true';
+        recalcHours();
+      }
+      showToast('已自動拆分為 9小時正常工時 + ' + Math.round(remaining * 10) / 10 + '小時晚間加班', 'success');
+    }
+  } else {
+    // Hide auto notice if hours <= 9
+    if (otNotice) otNotice.style.display = 'none';
+  }
+}
+
+// ── Hours input change handler for auto-split ──
+document.addEventListener('change', function(e) {
+  if (e.target.classList.contains('hours-input')) {
+    var row = e.target.closest('.site-row');
+    if (!row) return;
+    // Check if in range mode block
+    var block = row.closest('.date-block');
+    checkAutoSplit(row, block);
+  }
+});
+
 function getSiteData() {
   var result = [];
   var rows = document.querySelectorAll('.site-row');
@@ -746,6 +851,7 @@ function getSiteData() {
     var sel = row.querySelector('.site-select');
     var other = row.querySelector('.other-input');
     var hrInput = row.querySelector('.hours-input');
+    var otSel = row.querySelector('.overtime-select');
     var name = '';
     var subsidiary = '';
     if (sel.classList.contains('hidden')) {
@@ -758,7 +864,7 @@ function getSiteData() {
       }
     }
     if (name) {
-      result.push({name: name, subsidiary: subsidiary, hours: parseFloat(hrInput.value) || 0});
+      result.push({name: name, subsidiary: subsidiary, hours: parseFloat(hrInput.value) || 0, overtimeType: otSel ? otSel.value : '正常工時'});
     }
   });
   return result;

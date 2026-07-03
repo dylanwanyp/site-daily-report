@@ -9,6 +9,7 @@ var SITES = 'sites';
 var EMPLOYEES = 'employees';
 var SUBS = 'subsidiaries';
 var RECS = 'records';
+var APPR = 'approvals';
 
 // ── Entry Points ──
 function doGet(e) { return route(e, false); }
@@ -25,14 +26,14 @@ function route(e, isPost) {
 
 function routeAction(action, e, isPost) {
   switch (action) {
-    case 'getSites':         return json(getSites());
-    case 'getEmployees':     return json(getEmployees());
-    case 'getSubsidiaries':  return json(getSubs());
-    case 'getAllData':       return json({sites: getSites(), employees: getEmployees(), subsidiaries: getSubs()});
-    case 'checkMissing':     return json(checkMissingDays(e));
-    case 'getExistingDates': return json(getExistingDates(e));
-    case 'submitRecords':    return json(handleSubmit(isPost ? JSON.parse(e.postData.contents) : JSON.parse(e.parameter.data || '[]')));
-    case 'verifyPassword':   return json(verifyPw(e, isPost));
+    case 'getSites':          return json(getSites());
+    case 'getEmployees':      return json(getEmployees());
+    case 'getSubsidiaries':   return json(getSubs());
+    case 'getAllData':        return json({sites: getSites(), employees: getEmployees(), subsidiaries: getSubs()});
+    case 'checkMissing':      return json(checkMissingDays(e));
+    case 'getExistingDates':  return json(getExistingDates(e));
+    case 'submitRecords':     return json(handleSubmit(isPost ? JSON.parse(e.postData.contents) : JSON.parse(e.parameter.data || '[]')));
+    case 'verifyPassword':    return json(verifyPw(e, isPost));
     case 'getRecordsForReport':
       var auth = checkAdmin(e, isPost);
       if (!auth.ok) return json(auth);
@@ -45,7 +46,15 @@ function routeAction(action, e, isPost) {
       var a2 = checkAdmin(e, isPost);
       if (!a2.ok) return json(a2);
       return json(getSubsidiaryReport(e, isPost));
-    default: return json({error: 'Unknown action: ' + action});
+    case 'approveEmployee':
+    case 'unapproveEmployee':
+    case 'getApprovals':
+    case 'getApprovalStatus':
+      var a3 = checkAdmin(e, isPost);
+      if (!a3.ok) return json(a3);
+      return json(approvalAction(action, e, isPost));
+    default:
+      return json({error: 'Unknown action: ' + action});
   }
 }
 
@@ -83,7 +92,6 @@ function verifyPw(e, isPost) {
 }
 
 function adminAction(action, e, isPost) {
-  // Support both GET query params and POST body
   var body = parseParams(e, isPost);
   var auth = checkAdmin(e, isPost);
   if (!auth.ok) return auth;
@@ -96,6 +104,93 @@ function adminAction(action, e, isPost) {
     case 'adminDeleteSubsidiary': return deleteSub(body);
     default:                      return {error: 'Unknown admin action'};
   }
+}
+
+// ── Approval Actions ──
+function approvalAction(action, e, isPost) {
+  var body = parseParams(e, isPost);
+  switch (action) {
+    case 'approveEmployee':
+      return json(approveEmployee(body));
+    case 'unapproveEmployee':
+      return json(unapproveEmployee(body));
+    case 'getApprovals':
+      return json(getApprovals(body));
+    case 'getApprovalStatus':
+      return json(getApprovalStatus(body));
+    default:
+      return json({error: 'Unknown approval action'});
+  }
+}
+
+function approveEmployee(b) {
+  var emp = (b.employee || '').trim();
+  var month = (b.month || '').trim();
+  if (!emp || !month) return {error: 'Employee and month required'};
+  var sheet = ss().getSheetByName(APPR);
+  if (!sheet) {
+    sheet = ss().insertSheet(APPR);
+    sheet.appendRow(['員工姓名', '月份', '審批時間']);
+  }
+  // Remove existing entry for this employee+month
+  var rows = sheet.getDataRange().getValues();
+  var foundRow = -1;
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim() === emp && String(rows[i][1]).trim() === month) {
+      foundRow = i + 1;
+      break;
+    }
+  }
+  if (foundRow > 0) {
+    sheet.deleteRow(foundRow);
+  }
+  sheet.appendRow([emp, month, fmtDateTime(new Date())]);
+  return {success: true};
+}
+
+function unapproveEmployee(b) {
+  var emp = (b.employee || '').trim();
+  var month = (b.month || '').trim();
+  if (!emp || !month) return {error: 'Employee and month required'};
+  var sheet = ss().getSheetByName(APPR);
+  if (!sheet) return {success: false, error: 'Approvals sheet not found'};
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim() === emp && String(rows[i][1]).trim() === month) {
+      sheet.deleteRow(i + 1);
+      return {success: true};
+    }
+  }
+  return {success: false, error: 'Approval not found'};
+}
+
+function getApprovals(b) {
+  var month = (b.month || '').trim();
+  var sheet = ss().getSheetByName(APPR);
+  if (!sheet) return {approvals: []};
+  var rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) return {approvals: []};
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (month && String(rows[i][1]).trim() !== month) continue;
+    out.push({employee: String(rows[i][0]).trim(), month: String(rows[i][1]).trim(), approvedAt: String(rows[i][2] || '')});
+  }
+  return {approvals: out};
+}
+
+function getApprovalStatus(b) {
+  var month = (b.month || '').trim();
+  var sheet = ss().getSheetByName(APPR);
+  if (!sheet) return {status: {}};
+  var rows = sheet.getDataRange().getValues();
+  var status = {};
+  for (var i = 1; i < rows.length; i++) {
+    var m = String(rows[i][1]).trim();
+    var emp = String(rows[i][0]).trim();
+    if (month && m !== month) continue;
+    status[emp] = {approved: true, month: m, approvedAt: String(rows[i][2] || '')};
+  }
+  return {status: status};
 }
 
 // ── Config ──
@@ -127,7 +222,7 @@ function checkMissingDays(e) {
   var rows = readSheet(RECS);
   var empRecs = {};
   for (var i = 0; i < rows.length; i++)
-    if (String(rows[i][1]).trim() === emp) empRecs[String(rows[i][0]).trim()] = true;
+    if (String(rows[i][1]).trim() === emp) empRecs[String(rows[i][0]).substring(0,10)] = true;
   var today = new Date();
   var missing = [];
   for (var n = 1; n <= 30; n++) {
@@ -149,7 +244,7 @@ function getExistingDates(e) {
   var rows = readSheet(RECS);
   var exist = {};
   for (var i = 0; i < rows.length; i++)
-    if (String(rows[i][1]).trim() === emp) exist[String(rows[i][0]).trim()] = true;
+    if (String(rows[i][1]).trim() === emp) exist[String(rows[i][0]).substring(0,10)] = true;
   var out = [];
   for (var j = 0; j < target.length; j++)
     if (exist[target[j].trim()]) out.push(target[j].trim());
@@ -157,6 +252,7 @@ function getExistingDates(e) {
 }
 
 // ── Submit ──
+// Records columns: 0=date,1=employee,2=site,3=subsidiary,4=hours,5=note,6=timestamp,7=overtimeType
 function handleSubmit(records) {
   if (!records || !records.length) return {success: false, count: 0, error: 'No records'};
   var sheet = ss().getSheetByName(RECS);
@@ -165,10 +261,37 @@ function handleSubmit(records) {
   var rows = [];
   for (var i = 0; i < records.length; i++) {
     var r = records[i];
-    rows.push([r.date||'', r.employee||'', r.site||'', r.subsidiary||'', Number(r.hours)||0, r.note||'', fmtDateTime(now)]);
+    rows.push([r.date||'', r.employee||'', r.site||'', r.subsidiary||'', Number(r.hours)||0, r.note||'', fmtDateTime(now), r.overtimeType||'正常工時']);
   }
-  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 7).setValues(rows);
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 8).setValues(rows);
   return {success: true, count: rows.length};
+}
+
+// ── Weighted Hours Calculator ──
+function calcWeightedHours(hours, overtimeType) {
+  var h = Number(hours) || 0;
+  var t = (overtimeType || '正常工時').trim();
+  var multiplier = 1.0;
+  if (t === '晚間加班') multiplier = 1.5;
+  else if (t === '深夜加班') multiplier = 2.0;
+  return Math.round(h * multiplier * 10) / 10;
+}
+
+function formatRecordRow(row) {
+  var dateStr = String(row[0]).substring(0,10);
+  var overtimeType = row.length > 7 ? String(row[7] || '正常工時').trim() : '正常工時';
+  var hours = Number(row[4]) || 0;
+  return {
+    date: dateStr,
+    employee: String(row[1] || '').trim(),
+    site: String(row[2] || '').trim(),
+    subsidiary: String(row[3] || '').trim(),
+    hours: hours,
+    note: String(row[5] || '').trim(),
+    timestamp: String(row[6] || ''),
+    overtimeType: overtimeType,
+    weightedHours: calcWeightedHours(hours, overtimeType)
+  };
 }
 
 // ── Report ──
@@ -182,6 +305,21 @@ function getReport(e, isPost) {
   var parts = month.split('-');
   var year = parseInt(parts[0], 10);
   var mon = parseInt(parts[1], 10);
+
+  // Get approval status
+  var appStatus = {};
+  var appSheet = ss().getSheetByName(APPR);
+  if (appSheet) {
+    var appRows = appSheet.getDataRange().getValues();
+    for (var ai = 1; ai < appRows.length; ai++) {
+      var am = String(appRows[ai][1]).trim();
+      var ae = String(appRows[ai][0]).trim();
+      if (am === month) {
+        appStatus[ae] = {approved: true, approvedAt: String(appRows[ai][2] || '')};
+      }
+    }
+  }
+
   if (emp === 'all') {
     var rStartStr = fmtDate(new Date(year, mon - 1, 1));
     var rEndStr = fmtDate(new Date(year, mon, 0));
@@ -190,17 +328,19 @@ function getReport(e, isPost) {
     for (var j = 0; j < rows.length; j++) {
       var dateStr = ds(rows[j][0]);
       if (!dateStr) continue;
-      if (dateStr >= rStartStr && dateStr <= rEndStr)
-        out.push({date: dateStr, employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
+      if (dateStr >= rStartStr && dateStr <= rEndStr) {
+        out.push(formatRecordRow(rows[j]));
+      }
     }
-    return {records: out, rangeStart: rStartStr, rangeEnd: rEndStr, mode: 'all'};
+    return {records: out, rangeStart: rStartStr, rangeEnd: rEndStr, mode: 'all', approvalStatus: appStatus};
   }
+
   var emps = readSheet(EMPLOYEES);
   var startDay = 1;
   for (var i = 0; i < emps.length; i++)
     if (String(emps[i][0]).trim() === emp) { startDay = Number(emps[i][1]) || 1; break; }
 
- var rStart, rEnd;
+  var rStart, rEnd;
   if (startDay === 1) {
     rStart = new Date(year, mon - 1, 1);
     rEnd = new Date(year, mon, 0, 23, 59, 59);
@@ -224,10 +364,11 @@ function getReport(e, isPost) {
     if (String(rows[j][1]).trim() !== emp) continue;
     var dateStr = ds(rows[j][0]);
     if (!dateStr) continue;
-    if (dateStr >= rStartStr && dateStr <= rEndStr)
-      out.push({date: dateStr, employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
+    if (dateStr >= rStartStr && dateStr <= rEndStr) {
+      out.push(formatRecordRow(rows[j]));
+    }
   }
-  return {records: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd)};
+  return {records: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), approvalStatus: appStatus};
 }
 
 // ── Uniform param parser (GET query params + POST body) ──
@@ -244,9 +385,7 @@ function parseParams(e, isPost) {
       for (var k in p) {
         if (k !== 'action') body[k] = p[k];
       }
-    } catch (exc) {
-      // POST body parse failed, params already from e.parameter
-    }
+    } catch (exc) { }
   }
   return body;
 }
@@ -330,7 +469,8 @@ function getSubsidiaryReport(e, isPost) {
   var rEnd = new Date(year, mon, 0, 23, 59, 59);
   var rStartStr = fmtDate(rStart);
   var rEndStr = fmtDate(rEnd);
- var rows = readSheet(RECS);
+
+  var rows = readSheet(RECS);
   if (subName === 'all') {
     var allData = {};
     for (var j = 0; j < rows.length; j++) {
@@ -343,30 +483,39 @@ function getSubsidiaryReport(e, isPost) {
       if (!sub) continue;
       if (!allData[sub]) allData[sub] = {};
       if (!allData[sub][site]) allData[sub][site] = {};
-      if (!allData[sub][site][emp]) allData[sub][site][emp] = 0;
-      allData[sub][site][emp]++;
+      if (!allData[sub][site][emp]) allData[sub][site][emp] = {days: 0, totalHours: 0, totalWeighted: 0};
+      allData[sub][site][emp].days++;
+      var h = Number(rows[j][4]) || 0;
+      allData[sub][site][emp].totalHours += h;
+      var ot = rows[j].length > 7 ? String(rows[j][7] || '正常工時').trim() : '正常工時';
+      allData[sub][site][emp].totalWeighted += calcWeightedHours(h, ot);
     }
     var out = [];
     Object.keys(allData).sort().forEach(function(sn) {
       var siteList = [];
       var subTotal = 0;
+      var subWeightedTotal = 0;
       Object.keys(allData[sn]).sort().forEach(function(siteName) {
         var wl = [];
         Object.keys(allData[sn][siteName]).sort().forEach(function(en) {
-          wl.push({name: en, days: allData[sn][siteName][en]});
+          wl.push({name: en, days: allData[sn][siteName][en].days, totalHours: Math.round(allData[sn][siteName][en].totalHours*10)/10, totalWeighted: Math.round(allData[sn][siteName][en].totalWeighted*10)/10});
         });
         var sd = 0;
-        Object.keys(allData[sn][siteName]).forEach(function(k) { sd += allData[sn][siteName][k]; });
-        siteList.push({site: siteName, totalWorkerDays: sd, workers: wl});
+        var sw = 0;
+        Object.keys(allData[sn][siteName]).forEach(function(k) { sd += allData[sn][siteName][k].days; sw += allData[sn][siteName][k].totalWeighted; });
+        siteList.push({site: siteName, totalWorkerDays: sd, totalWeighted: Math.round(sw*10)/10, workers: wl});
         subTotal += sd;
+        subWeightedTotal += sw;
       });
-      out.push({subsidiary: sn, sites: siteList, totalWorkerDays: subTotal});
+      out.push({subsidiary: sn, sites: siteList, totalWorkerDays: subTotal, totalWeighted: Math.round(subWeightedTotal*10)/10});
     });
     return {mode: 'all', subsidiaries: out, rangeStart: rStartStr, rangeEnd: rEndStr};
   }
+
   var siteEmpDays = {};
   var siteTotals = {};
- for (var j = 0; j < rows.length; j++) {
+  var siteWeightedTotals = {};
+  for (var j = 0; j < rows.length; j++) {
     if (String(rows[j][3] || '').trim() !== subName) continue;
     var dateStr = ds(rows[j][0]);
     if (!dateStr) continue;
@@ -374,20 +523,27 @@ function getSubsidiaryReport(e, isPost) {
     var emp = String(rows[j][1]).trim();
     var site = String(rows[j][2]).trim();
     if (!siteEmpDays[site]) siteEmpDays[site] = {};
-    if (!siteEmpDays[site][emp]) siteEmpDays[site][emp] = 0;
-    siteEmpDays[site][emp]++;
+    if (!siteEmpDays[site][emp]) siteEmpDays[site][emp] = {days: 0, totalHours: 0, totalWeighted: 0};
+    siteEmpDays[site][emp].days++;
+    var h = Number(rows[j][4]) || 0;
+    siteEmpDays[site][emp].totalHours += h;
+    var ot = rows[j].length > 7 ? String(rows[j][7] || '正常工時').trim() : '正常工時';
+    siteEmpDays[site][emp].totalWeighted += calcWeightedHours(h, ot);
     if (!siteTotals[site]) siteTotals[site] = 0;
     siteTotals[site]++;
+    if (!siteWeightedTotals[site]) siteWeightedTotals[site] = 0;
+    siteWeightedTotals[site] += calcWeightedHours(h, ot);
   }
   var out = [];
   Object.keys(siteTotals).sort().forEach(function(sn) {
     var wl = [];
     Object.keys(siteEmpDays[sn]).sort().forEach(function(en) {
-      wl.push({name: en, days: siteEmpDays[sn][en]});
+      wl.push({name: en, days: siteEmpDays[sn][en].days, totalHours: Math.round(siteEmpDays[sn][en].totalHours*10)/10, totalWeighted: Math.round(siteEmpDays[sn][en].totalWeighted*10)/10});
     });
-    out.push({site: sn, totalWorkerDays: siteTotals[sn], workers: wl});
+    out.push({site: sn, totalWorkerDays: siteTotals[sn], totalWeighted: Math.round(siteWeightedTotals[sn]*10)/10, workers: wl});
   });
   var gt = 0;
-  Object.keys(siteTotals).forEach(function(s) { gt += siteTotals[s]; });
-  return {subsidiary: subName, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), sites: out, grandTotal: gt};
+  var gtw = 0;
+  Object.keys(siteTotals).forEach(function(s) { gt += siteTotals[s]; gtw += siteWeightedTotals[s]; });
+  return {subsidiary: subName, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), sites: out, grandTotal: gt, grandTotalWeighted: Math.round(gtw*10)/10};
 }

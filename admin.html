@@ -100,6 +100,7 @@ th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
     <button class="tab-btn" onclick="switchTab('subsidiaries')">子公司管理</button>
     <button class="tab-btn" onclick="switchTab('report')">月結報表</button>
     <button class="tab-btn" onclick="switchTab('subsidiaryreport')">子公司月結</button>
+    <button class="tab-btn" onclick="switchTab('approval')">審批</button>
   </div>
 
   <!-- Tab: Sites -->
@@ -154,6 +155,14 @@ th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
       <button class="btn btn-primary" onclick="loadSubsidiaryReport()">產生報表</button>
     </div>
     <div id="subReportResult" class="print-area"></div>
+  <!-- Tab: Approval -->
+  <div id="tabApproval" class="tab-content">
+    <h2>&#9989; 工程部審批</h2>
+    <div class="inline-form no-print">
+      <div class="field"><label>月份</label><input type="month" id="approvalMonth"></div>
+      <button class="btn btn-primary" onclick="loadApprovalList()">載入審批列表</button>
+    </div>
+    <div id="approvalResult"></div>
   </div>
 </div>
 
@@ -492,30 +501,36 @@ function renderReport(data, emp, month) {
   var title = (emp === 'all') ? '全部員工' : emp;
   html += '<h2>月結報表 — ' + esc(title) + '</h2>';
   html += '<p>月份：' + month + ' (' + esc(rangeStart) + ' ~ ' + esc(rangeEnd) + ')</p>';
+  if (data.approvalStatus && data.approvalStatus[emp === 'all' ? '' : emp]) {
+    html += '<p style="color:#188038;font-weight:600">&#9989; 工程部已審批</p>';
+  }
   html += '<p>共 ' + records.length + ' 條記錄</p>';
   html += '</div>';
 
   if (records.length === 0) {
     html += '<p class="empty-msg">本月無記錄</p>';
   } else if (mode === 'all') {
-    html += '<table><thead><tr><th>日期</th><th>員工姓名</th><th>地盤名稱</th><th>子公司</th><th>工時</th><th>備註</th></tr></thead><tbody>';
+    html += '<table><thead><tr><th>日期</th><th>員工姓名</th><th>地盤名稱</th><th>子公司</th><th>工時</th><th>加班類型</th><th>比重工時</th><th>備註</th></tr></thead><tbody>';
     var totalHours = 0;
     records.forEach(function(r) {
       var h = parseFloat(r.hours) || 0;
       totalHours += h;
-      html += '<tr><td>' + fmtDisplayDate(esc(r.date)) + '</td><td>' + esc(r.employee) + '</td><td>' + esc(r.site) + '</td><td>' + esc(r.subsidiary || '-') + '</td><td>' + h + '</td><td>' + esc(r.note || '') + '</td></tr>';
+      html += '<tr><td>' + fmtDisplayDate(esc(r.date)) + '</td><td>' + esc(r.employee) + '</td><td>' + esc(r.site) + '</td><td>' + esc(r.subsidiary || '-') + '</td><td>' + h + '</td><td>' + esc(r.overtimeType || '正常工時') + '</td><td>' + (r.weightedHours || h) + '</td><td>' + esc(r.note || '') + '</td></tr>';
     });
-    html += '<tr class="total-row"><td colspan="5">合計</td><td>' + Math.round(totalHours * 10) / 10 + ' 小時</td></tr>';
+    html += '<tr class="total-row"><td colspan="6">合計（實際工時）</td><td>' + Math.round(totalHours * 10) / 10 + ' 小時</td><td></td></tr>';
     html += '</tbody></table>';
   } else {
-    html += '<table><thead><tr><th>日期</th><th>地盤名稱</th><th>子公司</th><th>工時</th><th>備註</th></tr></thead><tbody>';
+    html += '<table><thead><tr><th>日期</th><th>地盤名稱</th><th>子公司</th><th>工時</th><th>加班類型</th><th>比重工時</th><th>備註</th></tr></thead><tbody>';
     var totalHours = 0;
+    var totalWeighted = 0;
     records.forEach(function(r) {
       var h = parseFloat(r.hours) || 0;
       totalHours += h;
-      html += '<tr><td>' + fmtDisplayDate(esc(r.date)) + '</td><td>' + esc(r.site) + '</td><td>' + esc(r.subsidiary || '-') + '</td><td>' + h + '</td><td>' + esc(r.note || '') + '</td></tr>';
+      totalWeighted += parseFloat(r.weightedHours) || h;
+      html += '<tr><td>' + fmtDisplayDate(esc(r.date)) + '</td><td>' + esc(r.site) + '</td><td>' + esc(r.subsidiary || '-') + '</td><td>' + h + '</td><td>' + esc(r.overtimeType || '正常工時') + '</td><td>' + (r.weightedHours || h) + '</td><td>' + esc(r.note || '') + '</td></tr>';
     });
-    html += '<tr class="total-row"><td colspan="3">合計</td><td>' + Math.round(totalHours * 10) / 10 + ' 小時</td></tr>';
+    html += '<tr class="total-row" style="background:#e8f5e9"><td colspan="6">合計（實際工時）</td><td>' + Math.round(totalHours * 10) / 10 + ' 小時</td></tr>';
+    html += '<tr class="total-row" style="background:#fff3e0"><td colspan="6">加權合計</td><td>' + Math.round(totalWeighted * 10) / 10 + ' 小時</td></tr>';
     html += '</tbody></table>';
   }
 
@@ -525,6 +540,89 @@ function renderReport(data, emp, month) {
   html += '</div>';
   html += '<button class="btn btn-print no-print" onclick="window.print()" style="margin-top:12px">&#128424; 打印</button>';
   div.innerHTML = html;
+}
+
+
+// ── Approval Functions ──
+function loadApprovalList() {
+  var month = document.getElementById('approvalMonth').value;
+  if (!month) { showToast('請選擇月份', 'error'); return; }
+  var resultDiv = document.getElementById('approvalResult');
+  resultDiv.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">&#128259; 載入中…</p>';
+
+  // Get all employees + their approval status for this month
+  fetch(GAS_URL + '?action=getEmployees')
+    .then(function(r) { return r.json(); })
+    .then(function(emps) {
+      if (!emps || emps.length === 0) { resultDiv.innerHTML = '<p class="empty-msg">尚未加入員工</p>'; return; }
+      fetch(GAS_URL + '?action=getApprovalStatus&password=' + encodeURIComponent(SESSION_PW) + '&month=' + encodeURIComponent(month))
+        .then(function(r) { return r.json(); })
+        .then(function(appData) {
+          renderApprovalList(emps, appData.status || {}, month);
+        })
+        .catch(function() { resultDiv.innerHTML = '<p style="color:var(--danger)">無法載入審批狀態</p>'; });
+    })
+    .catch(function() { resultDiv.innerHTML = '<p style="color:var(--danger)">無法載入員工資料</p>'; });
+}
+
+function renderApprovalList(emps, status, month) {
+  var div = document.getElementById('approvalResult');
+  var html = '<div class="report-header">';
+  html += '<h2>&#9989; 審批列表 — ' + month + '</h2>';
+  html += '<p>共 ' + emps.length + ' 位員工</p>';
+  html += '</div>';
+  html += '<table><thead><tr><th>員工姓名</th><th>審批狀態</th><th>操作</th></tr></thead><tbody>';
+  emps.forEach(function(e) {
+    var empName = e.name;
+    var isApproved = status[empName] && status[empName].approved;
+    html += '<tr>';
+    html += '<td>' + esc(empName) + '</td>';
+    html += '<td>' + (isApproved ? '<span style="color:#188038;font-weight:600">&#9989; 已審批</span>' : '<span style="color:#999">— 未審批</span>') + '</td>';
+    html += '<td class="actions">';
+    if (isApproved) {
+      html += '<button class="btn btn-small btn-outline" onclick="unapproveEmployee('' + escAttr(empName) + '', '' + month + '')">取消審批</button>';
+    } else {
+      html += '<button class="btn btn-small btn-primary" onclick="approveEmployee('' + escAttr(empName) + '', '' + month + '')">批准</button>';
+    }
+    html += '<button class="btn btn-small" style="background:#f0f0f0" onclick="viewEmployeeRecords('' + escAttr(empName) + '', '' + month + '')">查看記錄</button>';
+    html += '</td></tr>';
+  });
+  html += '</tbody></table>';
+  div.innerHTML = html;
+}
+
+function approveEmployee(employee, month) {
+  gasPost('approveEmployee', {password: SESSION_PW, employee: employee, month: month})
+    .then(function(data) {
+      if (data.success) {
+        showToast('已審批 ' + employee + ' (' + month + ')', 'success');
+        loadApprovalList();
+      } else {
+        showToast(data.error || '審批失敗', 'error');
+      }
+    })
+    .catch(function() { showToast('連線錯誤', 'error'); });
+}
+
+function unapproveEmployee(employee, month) {
+  gasPost('unapproveEmployee', {password: SESSION_PW, employee: employee, month: month})
+    .then(function(data) {
+      if (data.success) {
+        showToast('已取消審批 ' + employee, 'success');
+        loadApprovalList();
+      } else {
+        showToast(data.error || '操作失敗', 'error');
+      }
+    })
+    .catch(function() { showToast('連線錯誤', 'error'); });
+}
+
+function viewEmployeeRecords(employee, month) {
+  // Switch to report tab and load this employee
+  switchTab('report');
+  document.getElementById('reportEmployee').value = employee;
+  document.getElementById('reportMonth').value = month;
+  loadReport();
 }
 
 // ── Helpers ──
@@ -758,20 +856,23 @@ function exportReportXLSX() {
         return;
       }
       var isAll = (emp === 'all');
-      var headers = isAll ? ['日期','員工姓名','地盤名稱','子公司','工時(小時)','備註'] : ['日期','地盤名稱','子公司','工時(小時)','備註'];
+      var headers = isAll ? ['日期','員工姓名','地盤名稱','子公司','工時(小時)','加班類型','比重工時','備註'] : ['日期','地盤名稱','子公司','工時(小時)','加班類型','比重工時','備註'];
       var rows = [];
       var total = 0;
+      var totalW = 0;
       data.records.forEach(function(r) {
         var h = parseFloat(r.hours) || 0;
         total += h;
+        totalW += parseFloat(r.weightedHours) || h;
         if (isAll) {
-          rows.push([fmtDisplayDate(r.date), r.employee, r.site, r.subsidiary || '', h, r.note || '']);
+          rows.push([fmtDisplayDate(r.date), r.employee, r.site, r.subsidiary || '', h, r.overtimeType || '正常工時', r.weightedHours || h, r.note || '']);
         } else {
-          rows.push([fmtDisplayDate(r.date), r.site, r.subsidiary || '', h, r.note || '']);
+          rows.push([fmtDisplayDate(r.date), r.site, r.subsidiary || '', h, r.overtimeType || '正常工時', r.weightedHours || h, r.note || '']);
         }
       });
       rows.push([]);
       rows.push(['合計工時', Math.round(total * 10) / 10 + ' 小時']);
+      rows.push(['加權合計', Math.round(totalW * 10) / 10 + ' 小時']);
 
       var wb = XLSX.utils.book_new();
       var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
