@@ -183,17 +183,17 @@ function getReport(e, isPost) {
   var year = parseInt(parts[0], 10);
   var mon = parseInt(parts[1], 10);
   if (emp === 'all') {
-    var rStart = new Date(year, mon - 1, 1);
-    var rEnd = new Date(year, mon, 0, 23, 59, 59);
+    var rStartStr = fmtDate(new Date(year, mon - 1, 1));
+    var rEndStr = fmtDate(new Date(year, mon, 0));
     var rows = readSheet(RECS);
     var out = [];
     for (var j = 0; j < rows.length; j++) {
-      var d = new Date(rows[j][0]);
-      if (isNaN(d.getTime())) continue;
-      if (d >= rStart && d <= rEnd)
-        out.push({date: fmtDate(d), employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
+      var dateStr = ds(rows[j][0]);
+      if (!dateStr) continue;
+      if (dateStr >= rStartStr && dateStr <= rEndStr)
+        out.push({date: dateStr, employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
     }
-    return {records: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), mode: 'all'};
+    return {records: out, rangeStart: rStartStr, rangeEnd: rEndStr, mode: 'all'};
   }
   var emps = readSheet(EMPLOYEES);
   var startDay = 1;
@@ -216,14 +216,16 @@ function getReport(e, isPost) {
     }
   }
 
+  var rStartStr = fmtDate(rStart);
+  var rEndStr = fmtDate(rEnd);
   var rows = readSheet(RECS);
   var out = [];
   for (var j = 0; j < rows.length; j++) {
     if (String(rows[j][1]).trim() !== emp) continue;
-    var d = new Date(rows[j][0]);
-    if (isNaN(d.getTime())) continue;
-    if (d >= rStart && d <= rEnd)
-      out.push({date: fmtDate(d), employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
+    var dateStr = ds(rows[j][0]);
+    if (!dateStr) continue;
+    if (dateStr >= rStartStr && dateStr <= rEndStr)
+      out.push({date: dateStr, employee: rows[j][1], site: rows[j][2], subsidiary: rows[j][3], hours: rows[j][4], note: rows[j][5]});
   }
   return {records: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd)};
 }
@@ -326,13 +328,15 @@ function getSubsidiaryReport(e, isPost) {
   var mon = parseInt(parts[1], 10);
   var rStart = new Date(year, mon - 1, 1);
   var rEnd = new Date(year, mon, 0, 23, 59, 59);
+  var rStartStr = fmtDate(rStart);
+  var rEndStr = fmtDate(rEnd);
  var rows = readSheet(RECS);
   if (subName === 'all') {
     var allData = {};
     for (var j = 0; j < rows.length; j++) {
-      var d = new Date(rows[j][0]);
-      if (isNaN(d.getTime())) continue;
-      if (d < rStart || d > rEnd) continue;
+      var dateStr = ds(rows[j][0]);
+      if (!dateStr) continue;
+      if (dateStr < rStartStr || dateStr > rEndStr) continue;
       var emp = String(rows[j][1]).trim();
       var site = String(rows[j][2]).trim();
       var sub = String(rows[j][3] || '').trim();
@@ -358,15 +362,15 @@ function getSubsidiaryReport(e, isPost) {
       });
       out.push({subsidiary: sn, sites: siteList, totalWorkerDays: subTotal});
     });
-    return {mode: 'all', subsidiaries: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd)};
+    return {mode: 'all', subsidiaries: out, rangeStart: rStartStr, rangeEnd: rEndStr};
   }
   var siteEmpDays = {};
   var siteTotals = {};
  for (var j = 0; j < rows.length; j++) {
     if (String(rows[j][3] || '').trim() !== subName) continue;
-    var d = new Date(rows[j][0]);
-    if (isNaN(d.getTime())) continue;
-    if (d < rStart || d > rEnd) continue;
+    var dateStr = ds(rows[j][0]);
+    if (!dateStr) continue;
+    if (dateStr < rStartStr || dateStr > rEndStr) continue;
     var emp = String(rows[j][1]).trim();
     var site = String(rows[j][2]).trim();
     if (!siteEmpDays[site]) siteEmpDays[site] = {};
