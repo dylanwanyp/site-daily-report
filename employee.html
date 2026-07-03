@@ -615,6 +615,7 @@ function addSiteRow(siteName, hours) {
   hrInput.max = 18;
   hrInput.step = 0.5;
   hrInput.value = hours || 9;
+  if (hours) hrInput.dataset.manual = 'true';
   hrInput.className = 'hours-input';
   hrInput.onchange = recalcHours;
   var unit = document.createElement('span');
