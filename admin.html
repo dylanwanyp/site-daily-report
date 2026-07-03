@@ -854,12 +854,14 @@ function exportSubsidiaryCSV() {
         csv += '地盤名稱,員工姓名,工時,加班時數,比重工時\n';
         data.sites.forEach(function(s) {
           s.workers.forEach(function(w) {
-            var otH = Math.round((w.totalHours - w.normalHours) * 10) / 10;\ncsv += csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.totalHours + ',' + (otH > 0 ? otH : '') + ',' + w.totalWeighted + '\n';
+            var otH = Math.round((w.totalHours - w.normalHours) * 10) / 10;
+            csv += csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.totalHours + ',' + (otH > 0 ? otH : '') + ',' + w.totalWeighted + '\n';
           });
         });
         csv += ',,,,,\n';
         data.sites.forEach(function(s) {
-          var siteOt = Math.round((s.totalHours - s.normalHours) * 10) / 10;\ncsv += csvEscape(s.site) + ' 合計,,' + s.totalHours + ',' + (siteOt > 0 ? siteOt : '') + ',' + s.totalWeighted + '\n';
+          var siteOt = Math.round((s.totalHours - s.normalHours) * 10) / 10;
+          csv += csvEscape(s.site) + ' 合計,,' + s.totalHours + ',' + (siteOt > 0 ? siteOt : '') + ',' + s.totalWeighted + '\n';
         });
         csv += '總計,,' + data.grandTotalHours + ',' + (Math.round((data.grandTotalHours - data.grandNormalHours)*10)/10 > 0 ? Math.round((data.grandTotalHours - data.grandNormalHours)*10)/10 : '') + ',' + data.grandTotalWeighted + '\n';
         downloadCSV(csv, '子公司月結_' + sub + '_' + month + '.csv');
@@ -949,11 +951,10 @@ function exportSubsidiaryXLSX() {
             s.workers.forEach(function(w) {
               var otH = Math.round((w.totalHours - w.normalHours) * 10) / 10; rows.push([s.site, w.name, w.totalHours, otH > 0 ? otH : '', w.totalWeighted]);
             });
+            rows.push([]);
+            var siteOt = Math.round((s.totalHours - s.normalHours) * 10) / 10;
+            rows.push([s.site, '地盤合計', s.totalHours, siteOt > 0 ? siteOt : '', s.totalWeighted]);
           });
-          rows.push([]);
-          var siteOt = Math.round((s.totalHours - s.normalHours) * 10) / 10;
-          rows.push([s.site, '地盤合計', s.totalHours, siteOt > 0 ? siteOt : '', s.totalWeighted]);
-        });
         var subOt = Math.round((subData.totalHours - subData.normalHours) * 10) / 10;
         rows.push(['', '子公司合計', subData.totalHours, subOt > 0 ? subOt : '', subData.totalWeighted]);
           
@@ -975,7 +976,8 @@ function exportSubsidiaryXLSX() {
           });
         });
         rows.push([]);
-        var gOt = Math.round((data.grandTotalHours - data.grandNormalHours) * 10) / 10;\n        rows.push(['', '總計', data.grandTotalHours, gOt > 0 ? gOt : '', data.grandTotalWeighted]);
+        var gOt = Math.round((data.grandTotalHours - data.grandNormalHours) * 10) / 10;
+        rows.push(['', '總計', data.grandTotalHours, gOt > 0 ? gOt : '', data.grandTotalWeighted]);
         var wb = XLSX.utils.book_new();
         var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
         XLSX.utils.book_append_sheet(wb, ws, '月結');
