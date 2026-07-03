@@ -475,6 +475,10 @@ function addSiteRowToDateBlock(block, siteName, hours) {
   var otNotice = document.createElement('div');
   otNotice.className = 'overtime-auto-notice';
   otNotice.textContent = '⏬ 工時超過 9小時，已自動拆分為正常工時+晚間加班';
+  row.appendChild(sel);
+  row.appendChild(otherInput);
+  row.appendChild(otherBtn);
+  row.appendChild(hoursWrap);
   row.appendChild(otNotice);
   row.appendChild(otWrap);
   row.appendChild(delBtn);
@@ -616,6 +620,10 @@ function addSiteRow(siteName, hours) {
   var otNotice = document.createElement('div');
   otNotice.className = 'overtime-auto-notice';
   otNotice.textContent = '⏬ 工時超過 9小時，已自動拆分為正常工時+晚間加班';
+  row.appendChild(sel);
+  row.appendChild(otherInput);
+  row.appendChild(otherBtn);
+  row.appendChild(hoursWrap);
   row.appendChild(otNotice);
   row.appendChild(otWrap);
   row.appendChild(delBtn);
