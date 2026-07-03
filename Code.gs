@@ -111,15 +111,15 @@ function approvalAction(action, e, isPost) {
   var body = parseParams(e, isPost);
   switch (action) {
     case 'approveEmployee':
-      return json(approveEmployee(body));
+      return approveEmployee(body);
     case 'unapproveEmployee':
-      return json(unapproveEmployee(body));
+      return unapproveEmployee(body);
     case 'getApprovals':
-      return json(getApprovals(body));
+      return getApprovals(body);
     case 'getApprovalStatus':
-      return json(getApprovalStatus(body));
+      return getApprovalStatus(body);
     default:
-      return json({error: 'Unknown approval action'});
+      return {error: 'Unknown approval action'};
   }
 }
 
@@ -222,7 +222,7 @@ function checkMissingDays(e) {
   var rows = readSheet(RECS);
   var empRecs = {};
   for (var i = 0; i < rows.length; i++)
-    if (String(rows[i][1]).trim() === emp) empRecs[String(rows[i][0]).substring(0,10)] = true;
+    if (String(rows[i][1]).trim() === emp) empRecs[ds(rows[i][0])] = true;
   var today = new Date();
   var missing = [];
   for (var n = 1; n <= 30; n++) {
@@ -244,7 +244,7 @@ function getExistingDates(e) {
   var rows = readSheet(RECS);
   var exist = {};
   for (var i = 0; i < rows.length; i++)
-    if (String(rows[i][1]).trim() === emp) exist[String(rows[i][0]).substring(0,10)] = true;
+    if (String(rows[i][1]).trim() === emp) exist[ds(rows[i][0])] = true;
   var out = [];
   for (var j = 0; j < target.length; j++)
     if (exist[target[j].trim()]) out.push(target[j].trim());
@@ -278,7 +278,7 @@ function calcWeightedHours(hours, overtimeType) {
 }
 
 function formatRecordRow(row) {
-  var dateStr = String(row[0]).substring(0,10);
+  var dateStr = ds(row[0]);
   var overtimeType = row.length > 7 ? String(row[7] || '正常工時').trim() : '正常工時';
   var hours = Number(row[4]) || 0;
   return {
@@ -453,7 +453,10 @@ function fmtDate(d) {
 function fmtDateTime(d) {
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
 }
-function ds(v) { var s = String(v).substring(0,10); return s; }
+function ds(v) {
+  if (v instanceof Date) return fmtDate(v);
+  return String(v || '').substring(0, 10);
+}
 
 // ── Subsidiary Report ──
 function getSubsidiaryReport(e, isPost) {

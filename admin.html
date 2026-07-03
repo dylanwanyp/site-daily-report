@@ -155,6 +155,7 @@ th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
       <button class="btn btn-primary" onclick="loadSubsidiaryReport()">產生報表</button>
     </div>
     <div id="subReportResult" class="print-area"></div>
+  </div>
   <!-- Tab: Approval -->
   <div id="tabApproval" class="tab-content">
     <h2>&#9989; 工程部審批</h2>
@@ -199,10 +200,16 @@ function verifyPassword() {
   var pw = document.getElementById('pwInput').value.trim();
   if (!pw) return;
   document.getElementById('pwError').style.display = 'none';
+  var btn = document.querySelector('#pwGate .btn-primary');
+  var origText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 驗證中…';
   // Use GET to avoid GAS POST redirect losing the password body
   fetch(GAS_URL + '?action=verifyPassword&password=' + encodeURIComponent(pw))
   .then(function(r) { return r.json(); })
   .then(function(data) {
+    btn.disabled = false;
+    btn.innerHTML = origText;
     if (data.valid) {
       if (pw === '') {
         document.getElementById('pwError').textContent = '管理密碼尚未設定，請先在 Google Sheet 的 config tab 設定 (A1=admin_password, B1=你的密碼)';
@@ -218,6 +225,8 @@ function verifyPassword() {
     }
   })
   .catch(function() {
+    btn.disabled = false;
+    btn.innerHTML = origText;
     document.getElementById('pwError').textContent = '連線錯誤，請檢查網絡';
     document.getElementById('pwError').style.display = 'block';
   });
@@ -314,8 +323,14 @@ function addSite() {
   var name = document.getElementById('newSiteName').value.trim();
   var subsidiary = document.getElementById('newSiteSubsidiary').value;
   if (!name) { showToast('請輸入地盤名稱', 'error'); return; }
+  var btn = event && event.target ? event.target : document.querySelector('#tabSites .btn-primary');
+  btn.disabled = true;
+  var origText = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span> 提交中…';
   gasPost('adminUpdateSite', {password: SESSION_PW, name: name, subsidiary: subsidiary})
   .then(function(data) {
+    btn.disabled = false;
+    btn.innerHTML = origText;
     if (data.success) {
       showToast('地盤已新增/更新', 'success');
       document.getElementById('newSiteName').value = '';
@@ -324,7 +339,7 @@ function addSite() {
       showToast(data.error || '操作失敗', 'error');
     }
   })
-  .catch(function() { showToast('連線錯誤', 'error'); });
+  .catch(function() { btn.disabled = false; btn.innerHTML = origText; showToast('連線錯誤', 'error'); });
 }
 
 function deleteSite(name) {

@@ -139,7 +139,7 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
   <label>&#127963; 工作地盤</label>
   <div id="sitesContainer"></div>
   <div id="rangeSitesContainer"></div>
-  <button class="add-btn no-print" onclick="addSiteRow()" id="addSiteBtn">+ 加入地盤</button>
+  <button class="add-btn no-print" onclick="addSiteRow(); refreshSiteDropdowns();" id="addSiteBtn">+ 加入地盤</button>
   <div id="totalHoursDisplay" class="total-hours hidden">總工時：9 小時</div>
 </div>
 
@@ -201,19 +201,21 @@ function loadData() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.sites) {
-        sites = d.sites || [];
-        employees = d.employees || [];
-        subsidiaries = d.subsidiaries || [];
-        populateEmployees();
-        // Start with one site row now that sites are loaded
-        document.getElementById('sitesContainer').innerHTML = '';
-       addSiteRow();
-        // Re-render range blocks if in range mode (sites may not have been loaded when blocks were created)
-        if (dateMode === 'range') {
-          renderRangeDateBlocks();
-        }
-       showLoading(false);
-     } else {
+      sites = d.sites || [];
+      employees = d.employees || [];
+      subsidiaries = d.subsidiaries || [];
+      populateEmployees();
+      // Start with one site row now that sites are loaded
+      document.getElementById('sitesContainer').innerHTML = '';
+      addSiteRow(); refreshSiteDropdowns();
+      // Re-render range blocks if in range mode (sites may not have been loaded when blocks were created)
+      if (dateMode === 'range') {
+        renderRangeDateBlocks();
+        // Refresh dropdowns in range blocks too
+        refreshSiteDropdowns();
+      }
+      showLoading(false);
+    } else {
         // Fallback: getAllData not supported (old deployment)
         loadIndividualData();
       }
@@ -232,10 +234,11 @@ function loadIndividualData() {
     populateEmployees();
     // Start with one site row now that sites are loaded
     document.getElementById('sitesContainer').innerHTML = '';
-   addSiteRow();
+    addSiteRow(); refreshSiteDropdowns();
         // Re-render range blocks if in range mode
         if (dateMode === 'range') {
           renderRangeDateBlocks();
+          refreshSiteDropdowns();
         }
    showLoading(false);
  }).catch(function() {
@@ -246,6 +249,7 @@ function loadIndividualData() {
 
 function populateEmployees() {
   var sel = document.getElementById('employeeSelect');
+  var prevVal = sel.value;
   sel.innerHTML = '<option value="">— 請選擇 —</option>';
   employees.forEach(function(e) {
     var opt = document.createElement('option');
@@ -257,6 +261,15 @@ function populateEmployees() {
   other.value = '__other__';
   other.textContent = '其他 (自行輸入)';
   sel.appendChild(other);
+  // Restore previous selection if it still exists
+  if (prevVal) {
+    sel.value = prevVal;
+  }
+  // If custom employee input was visible, keep it visible
+  if (prevVal === '__other__') {
+    document.getElementById('customEmployeeWrap').classList.remove('hidden');
+    document.getElementById('customEmployeeInput').focus();
+  }
 }
 
 function showLoading(show) {
@@ -270,6 +283,22 @@ function showLoading(show) {
   }
   msg.style.display = show ? 'block' : 'none';
 }
+// Refresh all site dropdowns with current sites data (fixes empty dropdown on first row)
+function refreshSiteDropdowns() {
+  var selectors = document.querySelectorAll('.site-select');
+  selectors.forEach(function(sel) {
+    var currentVal = sel.value;
+    sel.innerHTML = '<option value="">— 選擇地盤 —</option>';
+    sites.forEach(function(s) {
+      var opt = document.createElement('option');
+      opt.value = s.name;
+      opt.textContent = s.name;
+      if (s.name === currentVal) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+}
+
 
 // ── Date Mode Toggle ──
 function setDateMode(mode) {
@@ -961,7 +990,7 @@ function resetForm() {
   document.getElementById('sitesContainer').innerHTML = '';
   document.getElementById('rangeSitesContainer').innerHTML = '';
   document.getElementById('rangeSitesContainer').classList.remove('hidden');
-  addSiteRow();
+  addSiteRow(); refreshSiteDropdowns();
   document.getElementById('noteInput').value = '';
   // Keep employee and date selection
   recalcHours();
