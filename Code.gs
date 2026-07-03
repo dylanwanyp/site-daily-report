@@ -335,7 +335,7 @@ function getReport(e, isPost) {
   if (appSheet) {
     var appRows = appSheet.getDataRange().getValues();
     for (var ai = 1; ai < appRows.length; ai++) {
-      var am = String(appRows[ai][1]).trim();
+      var am = fmtMonth(appRows[ai][1]);
       var ae = String(appRows[ai][0]).trim();
       if (am === month) {
         appStatus[ae] = {approved: true, approvedAt: String(appRows[ai][2] || '')};
