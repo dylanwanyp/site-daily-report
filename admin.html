@@ -187,13 +187,17 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ── Password ──
-// Helper: POST to GAS with text/plain (avoids CORS preflight + redirect issues)
+// Helper: GET-based GAS call (avoids GAS 302 redirect that loses POST body)
+function gasGet(action, data) {
+  var params = '?action=' + encodeURIComponent(action);
+  for (var key in data) {
+    params += '&' + encodeURIComponent(key) + '=' + encodeURIComponent(String(data[key]));
+  }
+  return fetch(GAS_URL + params).then(function(r) { return r.json(); });
+}
+// Legacy POST helper (redirects to gasGet due to GAS redirect bug)
 function gasPost(action, data) {
-  return fetch(GAS_URL + '?action=' + encodeURIComponent(action), {
-    method: 'POST',
-    headers: {'Content-Type': 'text/plain'},
-    body: JSON.stringify(data)
-  }).then(function(r) { return r.json(); });
+  return gasGet(action, data);
 }
 
 function verifyPassword() {
