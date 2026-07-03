@@ -173,6 +173,7 @@ th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbwTKgAbzCoU2OIuUpJOm2XvspATO51m6yjHDEjiYiX67S5JvWQdo4Xo3ChfC2CnfKkflQ/exec';
 var SESSION_PW = null;
+var isLoggingIn = false;
 
 document.addEventListener('DOMContentLoaded', function() {
   // Populate monthStartDay dropdown (1-28)
@@ -201,8 +202,10 @@ function gasPost(action, data) {
 }
 
 function verifyPassword() {
+  if (isLoggingIn) return;
   var pw = document.getElementById('pwInput').value.trim();
   if (!pw) return;
+  isLoggingIn = true;
   document.getElementById('pwError').style.display = 'none';
   var btn = document.querySelector('#pwGate .btn-primary');
   var origText = btn.innerHTML;
@@ -233,6 +236,9 @@ function verifyPassword() {
     btn.innerHTML = origText;
     document.getElementById('pwError').textContent = '連線錯誤，請檢查網絡';
     document.getElementById('pwError').style.display = 'block';
+  })
+  .finally(function() {
+    isLoggingIn = false;
   });
 }
 // ── Tabs ──

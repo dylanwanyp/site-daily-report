@@ -152,19 +152,7 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
 <!-- Submit -->
 <button class="btn btn-primary no-print" onclick="handleSubmit()" id="submitBtn">&#128228; 提交記錄</button>
 
-<!-- Duplicate modal -->
-<div id="dupModal" class="dup-modal">
-  <div class="card">
-    <h3>&#9888;&#65039; 重複日期提示</h3>
-    <p style="font-size:var(--fs-base);margin-bottom:4px">以下日期已有記錄，確定要繼續提交嗎？</p>
-    <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:8px">（已存在的記錄不會被覆蓋，會追加新行）</p>
-    <ul id="dupList" class="dup-list"></ul>
-    <div class="btn-group">
-      <button class="btn btn-outline" onclick="closeDupModal()" style="font-size:var(--fs-base)">取消</button>
-      <button class="btn btn-primary" onclick="confirmSubmit()" id="confirmDupBtn" style="font-size:var(--fs-base)">確定繼續</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- Toast -->
 <div id="toast" class="toast"></div>
@@ -179,7 +167,7 @@ var employees = [];
 var subsidiaries = [];
 var currentEmployee = '';
 var dateMode = 'single'; // 'single' | 'range'
-var pendingRecords = [];
+var isSubmitting = false;
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', function() {
@@ -910,52 +898,11 @@ function getSiteData() {
 
 // ── Submit Flow ──
 function handleSubmit() {
+  if (isSubmitting) return;
   var records = collectRecords();
   if (!records || records.length === 0) return;
-  pendingRecords = records;
-
-  // Check duplicates
-  var emp = records[0].employee;
-  var uniqueDates = [];
-  var seen = {};
-  records.forEach(function(r) {
-    if (!seen[r.date]) { seen[r.date] = true; uniqueDates.push(r.date); }
-  });
-
-  fetch(GAS_URL + '?action=getExistingDates&employee=' + encodeURIComponent(emp) + '&dates=' + encodeURIComponent(uniqueDates.join(',')))
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.existingDates && data.existingDates.length > 0) {
-        showDupModal(data.existingDates);
-      } else {
-        confirmSubmit();
-      }
-    })
-    .catch(function() {
-      // If duplicate check fails, proceed anyway
-      confirmSubmit();
-    });
-}
-
-function showDupModal(dates) {
-  var list = document.getElementById('dupList');
-  list.innerHTML = '';
-  dates.forEach(function(d) {
-    var li = document.createElement('li');
-    li.textContent = d;
-    list.appendChild(li);
-  });
-  document.getElementById('dupModal').classList.add('show');
-}
-
-function closeDupModal() {
-  document.getElementById('dupModal').classList.remove('show');
-  pendingRecords = [];
-}
-
-function confirmSubmit() {
-  document.getElementById('dupModal').classList.remove('show');
-  doSubmit(pendingRecords);
+  isSubmitting = true;
+  doSubmit(records);
 }
 
 function doSubmit(records) {
@@ -967,7 +914,13 @@ function doSubmit(records) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success) {
-      showToast('成功提交 ' + data.count + ' 條記錄！', 'success');
+      if (data.updated > 0 && data.added > 0) {
+        showToast('成功提交 ' + data.count + ' 條記錄（新增 ' + data.added + '，更新 ' + data.updated + '）', 'success');
+      } else if (data.updated > 0) {
+        showToast('成功更新 ' + data.updated + ' 條記錄', 'success');
+      } else {
+        showToast('成功提交 ' + data.added + ' 條記錄！', 'success');
+      }
       resetForm();
     } else {
       showToast('提交失敗：' + (data.error || '未知錯誤'), 'error');
@@ -979,6 +932,7 @@ function doSubmit(records) {
   .finally(function() {
     btn.disabled = false;
     btn.innerHTML = '&#128228; 提交記錄';
+    isSubmitting = false;
   });
 }
 

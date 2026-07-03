@@ -1,6 +1,6 @@
 /**
  * 外勤工程地盤日報系統 — Google Apps Script Backend
- * Last amended: 2026-07-03 (v18 - fixed missing brace in handleSubmit)
+ * Last amended: 2026-07-03 (v19 - upsert + LockService + isSubmitting guard)
  * Deploy: Execute as me → Access: Anyone (even anonymous)
  */
 
@@ -278,16 +278,62 @@ function getExistingDates(e) {
 // Records columns: 0=date,1=employee,2=site,3=subsidiary,4=hours,5=note,6=timestamp,7=overtimeType
 function handleSubmit(records) {
   if (!records || !records.length) return {success: false, count: 0, error: 'No records'};
-  var sheet = ss().getSheetByName(RECS);
-  if (!sheet) return {success: false, count: 0, error: 'Sheet not found'};
-  var now = new Date();
-  var rows = [];
-  for (var i = 0; i < records.length; i++) {
-    var r = records[i];
-    rows.push([r.date||'', r.employee||'', r.site||'', r.subsidiary||'', Number(r.hours)||0, r.note||'', fmtDateTime(now), r.overtimeType||'正常工時']);
+  
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    
+    var sheet = ss().getSheetByName(RECS);
+    if (!sheet) return {success: false, count: 0, error: 'Sheet not found'};
+    
+    var existingData = sheet.getDataRange().getValues();
+    var now = new Date();
+    var updatedCount = 0;
+    var newRows = [];
+    
+    for (var i = 0; i < records.length; i++) {
+      var r = records[i];
+      var newDate = String(r.date || '').trim();
+      var newEmp = String(r.employee || '').trim();
+      var newSite = String(r.site || '').trim();
+      var newOT = String(r.overtimeType || '正常工時').trim();
+      
+      var found = false;
+      for (var j = 1; j < existingData.length; j++) {
+        if (String(existingData[j][0] || '').trim() === newDate &&
+            String(existingData[j][1] || '').trim() === newEmp &&
+            String(existingData[j][2] || '').trim() === newSite &&
+            String(existingData[j][7] || '正常工時').trim() === newOT) {
+          // Update existing row (date+emp+site+OT key matches)
+          sheet.getRange(j + 1, 1, 1, 8).setValues([[
+            r.date||'', r.employee||'', r.site||'', r.subsidiary||'',
+            Number(r.hours)||0, r.note||'', fmtDateTime(now), r.overtimeType||'正常工時'
+          ]]);
+          updatedCount++;
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        newRows.push([
+          r.date||'', r.employee||'', r.site||'', r.subsidiary||'',
+          Number(r.hours)||0, r.note||'', fmtDateTime(now), r.overtimeType||'正常工時'
+        ]);
+      }
+    }
+    
+    if (newRows.length > 0) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, 8).setValues(newRows);
+    }
+    
+    return {success: true, count: records.length, updated: updatedCount, added: newRows.length};
+    
+  } catch (err) {
+    return {success: false, count: 0, error: err.message};
+  } finally {
+    lock.releaseLock();
   }
-  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 8).setValues(rows);
- return {success: true, count: rows.length};
 }
 
 // ── Calculate period range for a given employee's period-end-day ──
