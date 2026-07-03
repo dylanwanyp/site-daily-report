@@ -202,9 +202,13 @@ function loadData() {
         populateEmployees();
         // Start with one site row now that sites are loaded
         document.getElementById('sitesContainer').innerHTML = '';
-        addSiteRow();
-        showLoading(false);
-      } else {
+       addSiteRow();
+        // Re-render range blocks if in range mode (sites may not have been loaded when blocks were created)
+        if (dateMode === 'range') {
+          renderRangeDateBlocks();
+        }
+       showLoading(false);
+     } else {
         // Fallback: getAllData not supported (old deployment)
         loadIndividualData();
       }
@@ -223,9 +227,13 @@ function loadIndividualData() {
     populateEmployees();
     // Start with one site row now that sites are loaded
     document.getElementById('sitesContainer').innerHTML = '';
-    addSiteRow();
-    showLoading(false);
-  }).catch(function() {
+   addSiteRow();
+        // Re-render range blocks if in range mode
+        if (dateMode === 'range') {
+          renderRangeDateBlocks();
+        }
+   showLoading(false);
+ }).catch(function() {
     showToast('無法載入資料，請檢查網絡或 GAS 設定', 'error');
     showLoading(false);
   });
