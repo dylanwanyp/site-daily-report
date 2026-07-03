@@ -117,10 +117,10 @@ th{background:#f8f9fa;font-weight:600;position:sticky;top:0}
   <!-- Tab: Employees -->
   <div id="tabEmployees" class="tab-content">
     <h2>&#128100; 員工列表</h2>
-    <div class="table-wrap"><table id="employeesTable"><thead><tr><th>員工姓名</th><th>月結開始日</th><th>操作</th></tr></thead><tbody id="employeesBody"></tbody></table></div>
+    <div class="table-wrap"><table id="employeesTable"><thead><tr><th>員工姓名</th><th>月結日</th><th>操作</th></tr></thead><tbody id="employeesBody"></tbody></table></div>
     <div class="inline-form no-print">
       <div class="field"><label>員工姓名</label><input type="text" id="newEmployeeName" placeholder="輸入姓名"></div>
-      <div class="field"><label>月結開始日</label><select id="newEmployeeStartDay"></select></div>
+      <div class="field"><label>月結日</label><select id="newEmployeeStartDay"></select></div>
       <button class="btn btn-primary" onclick="addEmployee()">新增員工</button>
     </div>
   </div>
@@ -707,21 +707,22 @@ function renderSubsidiaryReport(data) {
         html += '<p style="font-size:13px;color:var(--muted)">共 ' + sub.sites.length + ' 個地盤</p>';
         sub.sites.forEach(function(s) {
           html += '<div style="margin-left:12px;margin-top:8px"><h4>&#127963; ' + esc(s.site) + '</h4>';
-          html += '<table><thead><tr><th>員工姓名</th><th>工作日數</th></tr></thead><tbody>';
+          html += '<table><thead><tr><th>員工姓名</th><th>工時</th><th>加班時數</th><th>比重工時</th></tr></thead><tbody>';
           s.workers.forEach(function(w) {
-            html += '<tr><td>' + esc(w.name) + '</td><td>' + w.days + ' 天</td></tr>';
+            html += '<tr><td>' + esc(w.name) + '</td><td>' + w.totalHours + '</td><td>' + (Math.round((w.totalHours - w.normalHours)*10)/10 > 0 ? Math.round((w.totalHours - w.normalHours)*10)/10 : '-') + '</td><td>' + w.totalWeighted + '</td></tr>';
           });
-          html += '<tr class="total-row"><td>地盤合計</td><td>' + s.totalWorkerDays + ' 工人日</td></tr>';
+          html += '<tr class="total-row"><td>地盤合計</td><td>' + s.totalHours + '</td><td>' + (Math.round((s.totalHours - s.normalHours)*10)/10 > 0 ? Math.round((s.totalHours - s.normalHours)*10)/10 : '-') + '</td><td>' + s.totalWeighted + '</td></tr>';
           html += '</tbody></table></div>';
         });
-        html += '<div style="margin-top:8px;padding:8px;background:#e8f5e9;border-radius:4px;font-weight:600">子公司小計：' + sub.totalWorkerDays + ' 工人日</div>';
+        html += '<div style="margin-top:8px;padding:8px;background:#e8f5e9;border-radius:4px;font-weight:600">子公司小計：工時 ' + sub.totalHours + ' | 加班 ' + (Math.round((sub.totalHours - sub.normalHours)*10)/10 > 0 ? Math.round((sub.totalHours - sub.normalHours)*10)/10 : '-') + ' | 比重工時 ' + sub.totalWeighted + '</div>';
         html += '</div>';
       });
       // Grand total
-      var grandTotal = 0;
-      data.subsidiaries.forEach(function(s) { grandTotal += s.totalWorkerDays; });
+      var grandTotalHours = 0, grandTotalWeighted = 0, grandTotalNormal = 0;
+      data.subsidiaries.forEach(function(s) { grandTotalHours += s.totalHours; grandTotalWeighted += s.totalWeighted; grandTotalNormal += s.normalHours; });
+      var grandOt = Math.round((grandTotalHours - grandTotalNormal) * 10) / 10;
       html += '<div style="margin-top:16px;padding:12px;background:#e8f5e9;border-radius:4px;font-weight:600;font-size:16px">';
-      html += '&#9888; 總工人工作日數：' + grandTotal + ' 日';
+      html += '&#9888; 总计：工时 ' + Math.round(grandTotalHours*10)/10 + ' | 加班 ' + (grandOt > 0 ? grandOt : '-') + ' | 比重工时 ' + Math.round(grandTotalWeighted*10)/10;
       html += '</div>';
     }
     html += '<div class="no-print" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">';
@@ -745,15 +746,16 @@ function renderSubsidiaryReport(data) {
   } else {
     sites.forEach(function(s) {
       html += '<div style="margin-top:16px"><h3>&#127963; ' + esc(s.site) + '</h3>';
-      html += '<table><thead><tr><th>員工姓名</th><th>工作日數</th></tr></thead><tbody>';
+      html += '<table><thead><tr><th>員工姓名</th><th>工時</th><th>加班時數</th><th>比重工時</th></tr></thead><tbody>';
       s.workers.forEach(function(w) {
-        html += '<tr><td>' + esc(w.name) + '</td><td>' + w.days + ' 天</td></tr>';
+        html += '<tr><td>' + esc(w.name) + '</td><td>' + w.totalHours + '</td><td>' + (Math.round((w.totalHours - w.normalHours)*10)/10 > 0 ? Math.round((w.totalHours - w.normalHours)*10)/10 : '-') + '</td><td>' + w.totalWeighted + '</td></tr>';
       });
-      html += '<tr class="total-row"><td>地盤合計</td><td>' + s.totalWorkerDays + ' 工人日</td></tr>';
+      html += '<tr class="total-row"><td>地盤合計</td><td>' + s.totalHours + '</td><td>' + (Math.round((s.totalHours - s.normalHours)*10)/10 > 0 ? Math.round((s.totalHours - s.normalHours)*10)/10 : '-') + '</td><td>' + s.totalWeighted + '</td></tr>';
       html += '</tbody></table></div>';
     });
+    var grandOt = Math.round((data.grandTotalHours - data.grandNormalHours) * 10) / 10;
     html += '<div style="margin-top:16px;padding:12px;background:#e8f5e9;border-radius:4px;font-weight:600">';
-    html += '總工人工作日數：' + data.grandTotal + ' 日';
+    html += '總計：工時 ' + data.grandTotalHours + ' | 加班 ' + (grandOt > 0 ? grandOt : '-') + ' | 比重工時 ' + data.grandTotalWeighted;
     html += '</div>';
   }
   html += '<div class="no-print" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">';
@@ -828,33 +830,32 @@ function exportSubsidiaryCSV() {
       var csv = '\uFEFF';
       
       if (data.mode === 'all') {
-        var grandTotal = 0;
-        csv += '月份:' + csvEscape(data.rangeStart) + ' ~ ' + csvEscape(data.rangeEnd) + '\n';
-        csv += '子公司,地盤名稱,員工姓名,工作日數\n';
-        data.subsidiaries.forEach(function(subData) {
-          subData.sites.forEach(function(s) {
-            s.workers.forEach(function(w) {
-              csv += csvEscape(subData.subsidiary) + ',' + csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.days + '\n';
-            });
-          });
-          grandTotal += subData.totalWorkerDays;
-        });
+       csv += '月份:' + csvEscape(data.rangeStart) + ' ~ ' + csvEscape(data.rangeEnd) + '\n';
+        csv += '子公司,地盤名稱,員工姓名,工時(小時),加班時數,比重工時\n';
+       data.subsidiaries.forEach(function(subData) {
+         subData.sites.forEach(function(s) {
+           s.workers.forEach(function(w) {
+              var otH = Math.round((w.totalHours - w.normalHours) * 10) / 10;
+              csv += csvEscape(subData.subsidiary) + ',' + csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.totalHours + ',' + (otH > 0 ? otH : '') + ',' + w.totalWeighted + '\n';
+           });
+         });
+       });
         csv += ',,,,,\n';
-        csv += '總工人工作日數,,, ' + grandTotal + '\n';
+        csv += '總計,,,,,\n';
         downloadCSV(csv, '全部子公司月結_' + month + '.csv');
       } else {
         csv += '子公司:' + csvEscape(data.subsidiary) + ',月份:' + csvEscape(data.rangeStart) + ' ~ ' + csvEscape(data.rangeEnd) + '\n';
-        csv += '地盤名稱,員工姓名,工作日數\n';
+        csv += '地盤名稱,員工姓名,工時,加班時數,比重工時\n';
         data.sites.forEach(function(s) {
           s.workers.forEach(function(w) {
-            csv += csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.days + '\n';
+            var otH = Math.round((w.totalHours - w.normalHours) * 10) / 10;\ncsv += csvEscape(s.site) + ',' + csvEscape(w.name) + ',' + w.totalHours + ',' + (otH > 0 ? otH : '') + ',' + w.totalWeighted + '\n';
           });
         });
         csv += ',,,,,\n';
         data.sites.forEach(function(s) {
-          csv += csvEscape(s.site) + ' 合計,,' + s.totalWorkerDays + '\n';
+          var siteOt = Math.round((s.totalHours - s.normalHours) * 10) / 10;\ncsv += csvEscape(s.site) + ' 合計,,' + s.totalHours + ',' + (siteOt > 0 ? siteOt : '') + ',' + s.totalWeighted + '\n';
         });
-        csv += '總工人工作日數,,' + data.grandTotal + '\n';
+        csv += '總計,,' + data.grandTotalHours + ',' + (Math.round((data.grandTotalHours - data.grandNormalHours)*10)/10 > 0 ? Math.round((data.grandTotalHours - data.grandNormalHours)*10)/10 : '') + ',' + data.grandTotalWeighted + '\n';
         downloadCSV(csv, '子公司月結_' + sub + '_' + month + '.csv');
       }
       
@@ -936,35 +937,39 @@ function exportSubsidiaryXLSX() {
       if (subIsAll && data.mode === 'all') {
         var wb = XLSX.utils.book_new();
         data.subsidiaries.forEach(function(subData) {
-          var headers = ['地盤名稱','員工姓名','工作日數'];
+          var headers = ['地盤名稱','員工姓名','工時','加班時數','比重工時'];
           var rows = [];
           subData.sites.forEach(function(s) {
             s.workers.forEach(function(w) {
-              rows.push([s.site, w.name, w.days]);
+              var otH = Math.round((w.totalHours - w.normalHours) * 10) / 10; rows.push([s.site, w.name, w.totalHours, otH > 0 ? otH : '', w.totalWeighted]);
             });
           });
           rows.push([]);
-          rows.push(['地盤合計', subData.totalWorkerDays]);
+          var siteOt = Math.round((s.totalHours - s.normalHours) * 10) / 10;
+          rows.push([s.site, '地盤合計', s.totalHours, siteOt > 0 ? siteOt : '', s.totalWeighted]);
+        });
+        var subOt = Math.round((subData.totalHours - subData.normalHours) * 10) / 10;
+        rows.push(['', '子公司合計', subData.totalHours, subOt > 0 ? subOt : '', subData.totalWeighted]);
           
           var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
           var sheetName = subData.subsidiary.substring(0, 31);
           XLSX.utils.book_append_sheet(wb, ws, sheetName);
         });
-        var wsTotal = XLSX.utils.aoa_to_sheet([['子公司','總工人日數']].concat(
-          data.subsidiaries.map(function(s) { return [s.subsidiary, s.totalWorkerDays]; })
+        var wsTotal = XLSX.utils.aoa_to_sheet([['子公司','工時','加班時數','比重工時']].concat(
+          data.subsidiaries.map(function(s) { var sOt = Math.round((s.totalHours - s.normalHours) * 10) / 10; return [s.subsidiary, s.totalHours, sOt > 0 ? sOt : '', s.totalWeighted]; })
         ));
         XLSX.utils.book_append_sheet(wb, wsTotal, '總計');
         XLSX.writeFile(wb, '全部子公司月結_' + month + '.xlsx');
       } else {
-        var headers = ['地盤名稱','員工姓名','工作日數'];
+        var headers = ['地盤名稱','員工姓名','工時','加班時數','比重工時'];
         var rows = [];
         data.sites.forEach(function(s) {
           s.workers.forEach(function(w) {
-            rows.push([s.site, w.name, w.days]);
+            var otH = Math.round((w.totalHours - w.normalHours) * 10) / 10; rows.push([s.site, w.name, w.totalHours, otH > 0 ? otH : '', w.totalWeighted]);
           });
         });
         rows.push([]);
-        rows.push(['地盤合計', data.grandTotal + ' 工人日']);
+        var gOt = Math.round((data.grandTotalHours - data.grandNormalHours) * 10) / 10;\n        rows.push(['', '總計', data.grandTotalHours, gOt > 0 ? gOt : '', data.grandTotalWeighted]);
         var wb = XLSX.utils.book_new();
         var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
         XLSX.utils.book_append_sheet(wb, ws, '月結');

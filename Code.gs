@@ -1,6 +1,6 @@
 /**
  * 外勤工程地盤日報系統 — Google Apps Script Backend
- * Last amended: 2026-07-03 (v16 - fixed getReport approval fmtMonth match)
+ * Last amended: 2026-07-03 (v18 - fixed missing brace in handleSubmit)
  * Deploy: Execute as me → Access: Anyone (even anonymous)
  */
 
@@ -287,7 +287,27 @@ function handleSubmit(records) {
     rows.push([r.date||'', r.employee||'', r.site||'', r.subsidiary||'', Number(r.hours)||0, r.note||'', fmtDateTime(now), r.overtimeType||'正常工時']);
   }
   sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 8).setValues(rows);
-  return {success: true, count: rows.length};
+ return {success: true, count: rows.length};
+}
+
+// ── Calculate period range for a given employee's period-end-day ──
+function calcPeriodRange(periodEndDay, year, mon) {
+  if (periodEndDay === 1) {
+    return {
+      start: fmtDate(new Date(year, mon - 1, 1)),
+      end: fmtDate(new Date(year, mon, 0, 23, 59, 59))
+    };
+  }
+  var pm = mon - 2;
+  var py = year;
+  if (pm < 0) { pm = 11; py--; }
+  var rStart = new Date(py, pm, periodEndDay + 1);
+  var rEnd = new Date(year, mon - 1, periodEndDay, 23, 59, 59);
+  if (mon === 1) {
+    rStart = new Date(year - 1, 11, periodEndDay + 1);
+    rEnd = new Date(year, 0, periodEndDay, 23, 59, 59);
+  }
+  return {start: fmtDate(rStart), end: fmtDate(rEnd)};
 }
 
 // ── Weighted Hours Calculator ──
@@ -359,28 +379,13 @@ function getReport(e, isPost) {
   }
 
   var emps = readSheet(EMPLOYEES);
-  var startDay = 1;
+  var periodEndDay = 1;
   for (var i = 0; i < emps.length; i++)
-    if (String(emps[i][0]).trim() === emp) { startDay = Number(emps[i][1]) || 1; break; }
+    if (String(emps[i][0]).trim() === emp) { periodEndDay = Number(emps[i][1]) || 1; break; }
+  var pr = calcPeriodRange(periodEndDay, year, mon);
 
-  var rStart, rEnd;
-  if (startDay === 1) {
-    rStart = new Date(year, mon - 1, 1);
-    rEnd = new Date(year, mon, 0, 23, 59, 59);
-  } else {
-    var pm = mon - 2;
-    var py = year;
-    if (pm < 0) { pm = 11; py--; }
-    rStart = new Date(py, pm, startDay);
-    rEnd = new Date(year, mon - 1, startDay - 1, 23, 59, 59);
-    if (mon === 1) {
-      rStart = new Date(year - 1, 11, startDay);
-      rEnd = new Date(year, 0, startDay - 1, 23, 59, 59);
-    }
-  }
-
-  var rStartStr = fmtDate(rStart);
-  var rEndStr = fmtDate(rEnd);
+  var rStartStr = pr.start;
+  var rEndStr = pr.end;
   var rows = readSheet(RECS);
   var out = [];
   for (var j = 0; j < rows.length; j++) {
@@ -391,7 +396,7 @@ function getReport(e, isPost) {
       out.push(formatRecordRow(rows[j]));
     }
   }
-  return {records: out, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), approvalStatus: appStatus};
+  return {records: out, rangeStart: rStartStr, rangeEnd: rEndStr, approvalStatus: appStatus};
 }
 
 // ── Uniform param parser (GET query params + POST body) ──
@@ -490,87 +495,100 @@ function getSubsidiaryReport(e, isPost) {
   var parts = month.split('-');
   var year = parseInt(parts[0], 10);
   var mon = parseInt(parts[1], 10);
-  var rStart = new Date(year, mon - 1, 1);
-  var rEnd = new Date(year, mon, 0, 23, 59, 59);
-  var rStartStr = fmtDate(rStart);
-  var rEndStr = fmtDate(rEnd);
+
+  // Build employee → periodEndDay map
+  var empPeriod = {};
+  var emps = readSheet(EMPLOYEES);
+  for (var ei = 0; ei < emps.length; ei++) {
+    empPeriod[String(emps[ei][0]).trim()] = Number(emps[ei][1]) || 1;
+  }
 
   var rows = readSheet(RECS);
   if (subName === 'all') {
     var allData = {};
     for (var j = 0; j < rows.length; j++) {
-      var dateStr = ds(rows[j][0]);
-      if (!dateStr) continue;
-      if (dateStr < rStartStr || dateStr > rEndStr) continue;
       var emp = String(rows[j][1]).trim();
+      var dateStr = ds(rows[j][0]);
+      if (!dateStr || !emp) continue;
+      var ped = empPeriod[emp] || 1;
+      var pr = calcPeriodRange(ped, year, mon);
+      if (dateStr < pr.start || dateStr > pr.end) continue;
       var site = String(rows[j][2]).trim();
       var sub = String(rows[j][3] || '').trim();
       if (!sub) continue;
       if (!allData[sub]) allData[sub] = {};
       if (!allData[sub][site]) allData[sub][site] = {};
-      if (!allData[sub][site][emp]) allData[sub][site][emp] = {days: 0, totalHours: 0, totalWeighted: 0};
-      allData[sub][site][emp].days++;
+      if (!allData[sub][site][emp]) allData[sub][site][emp] = {totalHours: 0, totalWeighted: 0, normalHours: 0};
       var h = Number(rows[j][4]) || 0;
       allData[sub][site][emp].totalHours += h;
       var ot = rows[j].length > 7 ? String(rows[j][7] || '正常工時').trim() : '正常工時';
       allData[sub][site][emp].totalWeighted += calcWeightedHours(h, ot);
+      if (ot === "正常工時" || ot === "") {
+        allData[sub][site][emp].normalHours += h;
+      }
     }
     var out = [];
     Object.keys(allData).sort().forEach(function(sn) {
       var siteList = [];
-      var subTotal = 0;
-      var subWeightedTotal = 0;
+      var subHoursTotal = 0, subNormalTotal = 0, subWeightedTotal = 0;
       Object.keys(allData[sn]).sort().forEach(function(siteName) {
         var wl = [];
         Object.keys(allData[sn][siteName]).sort().forEach(function(en) {
-          wl.push({name: en, days: allData[sn][siteName][en].days, totalHours: Math.round(allData[sn][siteName][en].totalHours*10)/10, totalWeighted: Math.round(allData[sn][siteName][en].totalWeighted*10)/10});
+          wl.push({name: en, totalHours: Math.round(allData[sn][siteName][en].totalHours*10)/10, totalWeighted: Math.round(allData[sn][siteName][en].totalWeighted*10)/10, normalHours: Math.round(allData[sn][siteName][en].normalHours*10)/10});
         });
-        var sd = 0;
-        var sw = 0;
-        Object.keys(allData[sn][siteName]).forEach(function(k) { sd += allData[sn][siteName][k].days; sw += allData[sn][siteName][k].totalWeighted; });
-        siteList.push({site: siteName, totalWorkerDays: sd, totalWeighted: Math.round(sw*10)/10, workers: wl});
-        subTotal += sd;
+        var sw = 0, sth = 0, snh = 0;
+        Object.keys(allData[sn][siteName]).forEach(function(k) { sw += allData[sn][siteName][k].totalWeighted; sth += allData[sn][siteName][k].totalHours; snh += allData[sn][siteName][k].normalHours; });
+        siteList.push({site: siteName, totalHours: Math.round(sth*10)/10, totalWeighted: Math.round(sw*10)/10, normalHours: Math.round(snh*10)/10, workers: wl});
         subWeightedTotal += sw;
+        subHoursTotal += sth;
+        subNormalTotal += snh;
       });
-      out.push({subsidiary: sn, sites: siteList, totalWorkerDays: subTotal, totalWeighted: Math.round(subWeightedTotal*10)/10});
+      out.push({subsidiary: sn, sites: siteList, totalHours: Math.round(subHoursTotal*10)/10, totalWeighted: Math.round(subWeightedTotal*10)/10, normalHours: Math.round(subNormalTotal*10)/10});
     });
-    return {mode: 'all', subsidiaries: out, rangeStart: rStartStr, rangeEnd: rEndStr};
+    return {mode: 'all', subsidiaries: out, rangeStart: '', rangeEnd: ''};
   }
 
-  var siteEmpDays = {};
-  var siteTotals = {};
-  var siteWeightedTotals = {};
+  // Single subsidiary mode
+  var siteEmpData = {};
+  var siteWeightedTotals = {}, siteHoursTotals = {}, siteNormalTotals = {};
   for (var j = 0; j < rows.length; j++) {
     if (String(rows[j][3] || '').trim() !== subName) continue;
-    var dateStr = ds(rows[j][0]);
-    if (!dateStr) continue;
-    if (dateStr < rStartStr || dateStr > rEndStr) continue;
     var emp = String(rows[j][1]).trim();
+    var dateStr = ds(rows[j][0]);
+    if (!dateStr || !emp) continue;
+    var ped = empPeriod[emp] || 1;
+    var pr = calcPeriodRange(ped, year, mon);
+    if (dateStr < pr.start || dateStr > pr.end) continue;
     var site = String(rows[j][2]).trim();
-    if (!siteEmpDays[site]) siteEmpDays[site] = {};
-    if (!siteEmpDays[site][emp]) siteEmpDays[site][emp] = {days: 0, totalHours: 0, totalWeighted: 0};
-    siteEmpDays[site][emp].days++;
+    if (!siteEmpData[site]) siteEmpData[site] = {};
+    if (!siteEmpData[site][emp]) siteEmpData[site][emp] = {totalHours: 0, totalWeighted: 0, normalHours: 0};
     var h = Number(rows[j][4]) || 0;
-    siteEmpDays[site][emp].totalHours += h;
+    siteEmpData[site][emp].totalHours += h;
     var ot = rows[j].length > 7 ? String(rows[j][7] || '正常工時').trim() : '正常工時';
-    siteEmpDays[site][emp].totalWeighted += calcWeightedHours(h, ot);
-    if (!siteTotals[site]) siteTotals[site] = 0;
-    siteTotals[site]++;
+    siteEmpData[site][emp].totalWeighted += calcWeightedHours(h, ot);
+    if (ot === "正常工時" || ot === "") {
+      siteEmpData[site][emp].normalHours += h;
+    }
     if (!siteWeightedTotals[site]) siteWeightedTotals[site] = 0;
     siteWeightedTotals[site] += calcWeightedHours(h, ot);
+    if (!siteHoursTotals[site]) siteHoursTotals[site] = 0;
+    siteHoursTotals[site] += h;
+    if (!siteNormalTotals[site]) siteNormalTotals[site] = 0;
+    if (ot === "正常工時" || ot === "") {
+      siteNormalTotals[site] += h;
+    }
   }
   var out = [];
-  Object.keys(siteTotals).sort().forEach(function(sn) {
+  Object.keys(siteHoursTotals).sort().forEach(function(sn) {
     var wl = [];
-    Object.keys(siteEmpDays[sn]).sort().forEach(function(en) {
-      wl.push({name: en, days: siteEmpDays[sn][en].days, totalHours: Math.round(siteEmpDays[sn][en].totalHours*10)/10, totalWeighted: Math.round(siteEmpDays[sn][en].totalWeighted*10)/10});
+    Object.keys(siteEmpData[sn]).sort().forEach(function(en) {
+      wl.push({name: en, totalHours: Math.round(siteEmpData[sn][en].totalHours*10)/10, totalWeighted: Math.round(siteEmpData[sn][en].totalWeighted*10)/10, normalHours: Math.round(siteEmpData[sn][en].normalHours*10)/10});
     });
-    out.push({site: sn, totalWorkerDays: siteTotals[sn], totalWeighted: Math.round(siteWeightedTotals[sn]*10)/10, workers: wl});
+    out.push({site: sn, totalHours: Math.round(siteHoursTotals[sn]*10)/10, totalWeighted: Math.round(siteWeightedTotals[sn]*10)/10, normalHours: Math.round(siteNormalTotals[sn]*10)/10, workers: wl});
   });
-  var gt = 0;
-  var gtw = 0;
-  Object.keys(siteTotals).forEach(function(s) { gt += siteTotals[s]; gtw += siteWeightedTotals[s]; });
-  return {subsidiary: subName, rangeStart: fmtDate(rStart), rangeEnd: fmtDate(rEnd), sites: out, grandTotal: gt, grandTotalWeighted: Math.round(gtw*10)/10};
+  var gtw = 0, gth = 0, gtn = 0;
+  Object.keys(siteHoursTotals).forEach(function(s) { gtw += siteWeightedTotals[s]; gth += siteHoursTotals[s] || 0; gtn += siteNormalTotals[s] || 0; });
+  return {subsidiary: subName, rangeStart: '', rangeEnd: '', sites: out, grandTotal: gth, grandTotalHours: Math.round(gth*10)/10, grandTotalWeighted: Math.round(gtw*10)/10, grandNormalHours: Math.round(gtn*10)/10};
 }
 function fmtMonth(v) {
   if (v instanceof Date) return Utilities.formatDate(v, "Asia/Hong_Kong", "yyyy-MM");
