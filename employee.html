@@ -85,6 +85,8 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
 .date-block .site-row{margin-bottom:6px}
 .date-block .add-btn{font-size:var(--fs-base);padding:8px 14px;margin-top:4px;margin-bottom:8px}
 .date-block .total-hours{font-size:var(--fs-base);font-weight:600;color:var(--primary)}
+.date-hint{font-size:var(--fs-sm);color:var(--muted);margin-top:4px;display:block;text-align:center}
+.date-input-wrap{position:relative}
 </style>
 </head>
 <body>
@@ -116,12 +118,14 @@ textarea{font-family:inherit;min-height:60px;resize:vertical}
   </div>
   <div id="singleDateWrap">
     <input type="date" id="singleDate">
+    <p class="date-hint">&#128197; 點擊選擇日期</p>
   </div>
   <div id="rangeDateWrap" class="date-range hidden">
     <label>由</label>
     <input type="date" id="rangeFrom">
     <label>至</label>
     <input type="date" id="rangeTo">
+    <p class="date-hint">&#128197; 點擊選擇開始及結束日期</p>
   </div>
 </div>
 
@@ -189,16 +193,19 @@ function setMinMaxDates() {
 
 function loadData() {
   showLoading(true);
-  var p1 = fetch(GAS_URL + '?action=getSites').then(function(r) { return r.json(); }).then(function(d) { sites = d; }).catch(function() { sites = []; });
-  var p2 = fetch(GAS_URL + '?action=getEmployees').then(function(r) { return r.json(); }).then(function(d) { employees = d; }).catch(function() { employees = []; });
-  var p3 = fetch(GAS_URL + '?action=getSubsidiaries').then(function(r) { return r.json(); }).then(function(d) { subsidiaries = d; }).catch(function() { subsidiaries = []; });
-  Promise.all([p1, p2, p3]).then(function() {
-    populateEmployees();
-    showLoading(false);
-  }).catch(function() {
-    showToast('無法載入資料，請檢查網絡或 GAS 設定', 'error');
-    showLoading(false);
-  });
+  fetch(GAS_URL + '?action=getAllData')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      sites = d.sites || [];
+      employees = d.employees || [];
+      subsidiaries = d.subsidiaries || [];
+      populateEmployees();
+      showLoading(false);
+    })
+    .catch(function() {
+      showToast('無法載入資料，請檢查網絡或 GAS 設定', 'error');
+      showLoading(false);
+    });
 }
 
 function populateEmployees() {
@@ -222,7 +229,7 @@ function showLoading(show) {
     msg = document.createElement('div');
     msg.id = 'loadingMsg';
     msg.className = 'loading-msg';
-    msg.innerHTML = '&#128259; 載入資料中…';
+    msg.innerHTML = '&#128259; 載入資料中 (約需 3-5 秒，請耐心等候)…';
     document.body.insertBefore(msg, document.body.firstChild);
   }
   msg.style.display = show ? 'block' : 'none';

@@ -223,9 +223,7 @@ function switchTab(name) {
 
 // ── Load All ──
 function loadAllTabs() {
-  loadSites();
-  loadEmployees();
-  loadSubsidiaries();
+  loadAllData();
 }
 
 // ── Toast ──
@@ -238,6 +236,23 @@ function showToast(msg, type) {
 }
 
 // ── Sites ──
+// ── Combined Load (fast path: single GAS call) ──
+function loadAllData() {
+  fetch(GAS_URL + '?action=getAllData')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      renderSites(d.sites || [], d.subsidiaries || []);
+      renderEmployees(d.employees || []);
+      renderSubsidiaries(d.subsidiaries || []);
+    })
+    .catch(function() {
+      // Fallback to individual loads
+      loadSites();
+      loadEmployees();
+      loadSubsidiaries();
+    });
+}
+
 function loadSites() {
   fetch(GAS_URL + '?action=getSites')
     .then(function(r) { return r.json(); })
@@ -308,25 +323,27 @@ function deleteSite(name) {
 
 // ── Employees ──
 function loadEmployees() {
-  fetch(GAS_URL + '?action=getEmployees')
+  fetch(GAS_URL + '?action=getAllData')
     .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var body = document.getElementById('employeesBody');
-      body.innerHTML = '';
-      if (!data || data.length === 0) {
-        body.innerHTML = '<tr><td colspan="3" class="empty-msg">尚未加入員工</td></tr>';
-      } else {
-        data.forEach(function(e) {
-          var tr = document.createElement('tr');
-          tr.innerHTML = '<td>' + esc(e.name) + '</td><td>' + (e.monthStartDay || 1) + ' 號</td>' +
-            '<td class="actions"><button class="btn btn-danger btn-small" onclick="deleteEmployee(\'' + escAttr(e.name) + '\')">刪除</button></td>';
-          body.appendChild(tr);
-        });
-      }
-      // Update report dropdown
-      updateReportEmployeeDropdown(data);
-    })
+    .then(function(d) { renderEmployees(d.employees || []); })
     .catch(function() { showToast('無法載入員工資料', 'error'); });
+}
+
+function renderEmployees(data) {
+  var body = document.getElementById('employeesBody');
+  body.innerHTML = '';
+  if (!data || data.length === 0) {
+    body.innerHTML = '<tr><td colspan="3" class="empty-msg">尚未加入員工</td></tr>';
+  } else {
+    data.forEach(function(e) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(e.name) + '</td><td>' + (e.monthStartDay || 1) + ' 號</td>' +
+        '<td class="actions"><button class="btn btn-danger btn-small" onclick="deleteEmployee(\'' + escAttr(e.name) + '\')">刪除</button></td>';
+      body.appendChild(tr);
+    });
+  }
+  // Update report dropdown
+  updateReportEmployeeDropdown(data);
 }
 
 function updateReportEmployeeDropdown(emps) {
@@ -373,36 +390,38 @@ function deleteEmployee(name) {
 
 // ── Subsidiaries ──
 function loadSubsidiaries() {
-  fetch(GAS_URL + '?action=getSubsidiaries')
+  fetch(GAS_URL + '?action=getAllData')
     .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var body = document.getElementById('subsBody');
-      body.innerHTML = '';
-      if (!data || data.length === 0) {
-        body.innerHTML = '<tr><td colspan="2" class="empty-msg">尚未加入子公司</td></tr>';
-      } else {
-        data.forEach(function(s) {
-          var tr = document.createElement('tr');
-          tr.innerHTML = '<td>' + esc(s.name) + '</td>' +
-            '<td class="actions"><button class="btn btn-danger btn-small" onclick="deleteSubsidiary(\'' + escAttr(s.name) + '\')">刪除</button></td>';
-          body.appendChild(tr);
-        });
-      }
-      // Populate subsidiary report dropdown
-      var subSel = document.getElementById('subReportSubsidiary');
-      subSel.innerHTML = '<option value="">&#8212; 請選擇 &#8212;</option>';
-      (data || []).forEach(function(s) {
-        var opt = document.createElement('option');
-        opt.value = s.name;
-        opt.textContent = s.name;
-        subSel.appendChild(opt);
-      });
-      var allOpt2 = document.createElement('option');
-      allOpt2.value = 'all';
-      allOpt2.textContent = '全部子公司';
-      subSel.appendChild(allOpt2);
-    })
+    .then(function(d) { renderSubsidiaries(d.subsidiaries || []); })
     .catch(function() { showToast('無法載入子公司資料', 'error'); });
+}
+
+function renderSubsidiaries(data) {
+  var body = document.getElementById('subsBody');
+  body.innerHTML = '';
+  if (!data || data.length === 0) {
+    body.innerHTML = '<tr><td colspan="2" class="empty-msg">尚未加入子公司</td></tr>';
+  } else {
+    data.forEach(function(s) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(s.name) + '</td>' +
+        '<td class="actions"><button class="btn btn-danger btn-small" onclick="deleteSubsidiary(\'' + escAttr(s.name) + '\')">刪除</button></td>';
+      body.appendChild(tr);
+    });
+  }
+  // Populate subsidiary report dropdown
+  var subSel = document.getElementById('subReportSubsidiary');
+  subSel.innerHTML = '<option value="">&#8212; 請選擇 &#8212;</option>';
+  (data || []).forEach(function(s) {
+    var opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.name;
+    subSel.appendChild(opt);
+  });
+  var allOpt2 = document.createElement('option');
+  allOpt2.value = 'all';
+  allOpt2.textContent = '全部子公司';
+  subSel.appendChild(allOpt2);
 }
 
 function addSubsidiary() {

@@ -28,6 +28,7 @@ function routeAction(action, e, isPost) {
     case 'getSites':         return json(getSites());
     case 'getEmployees':     return json(getEmployees());
     case 'getSubsidiaries':  return json(getSubs());
+    case 'getAllData':       return json({sites: getSites(), employees: getEmployees(), subsidiaries: getSubs()});
     case 'checkMissing':     return json(checkMissingDays(e));
     case 'getExistingDates': return json(getExistingDates(e));
     case 'submitRecords':    return json(handleSubmit(isPost ? JSON.parse(e.postData.contents) : JSON.parse(e.parameter.data || '[]')));
